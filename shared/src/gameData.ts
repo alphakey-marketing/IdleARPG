@@ -30,6 +30,43 @@ export const SKILLS: Record<string, SkillDef> = {
     buffDuration: 4,
     description: 'Increases your attack by 50% for 4 ticks.',
   },
+  whirlwind: {
+    id: 'whirlwind',
+    name: 'Whirlwind',
+    type: 'active',
+    cooldown: 8,
+    resourceCost: 35,
+    damage: 40,
+    description: 'Spin and strike all enemies for heavy damage.',
+  },
+  iron_skin: {
+    id: 'iron_skin',
+    name: 'Iron Skin',
+    type: 'defensive',
+    cooldown: 12,
+    resourceCost: 25,
+    damage: 0,
+    buffDuration: 5,
+    description: 'Harden your skin, reducing incoming damage for 5 ticks.',
+  },
+  execute: {
+    id: 'execute',
+    name: 'Execute',
+    type: 'active',
+    cooldown: 7,
+    resourceCost: 30,
+    damage: 60,
+    description: 'A powerful finishing blow. Deals double damage to enemies below 30% HP.',
+  },
+  cleave: {
+    id: 'cleave',
+    name: 'Cleave',
+    type: 'active',
+    cooldown: 4,
+    resourceCost: 15,
+    damage: 20,
+    description: 'Sweep your weapon in a wide arc, hitting the primary target for bonus damage.',
+  },
 };
 
 export const CLASSES: Record<string, ClassDef> = {
@@ -43,7 +80,7 @@ export const CLASSES: Record<string, ClassDef> = {
       attackSpeed: 2,
       critChance: 0.05,
     },
-    skills: ['slash', 'shield_bash', 'battle_cry'],
+    skills: ['slash', 'shield_bash', 'battle_cry', 'whirlwind', 'iron_skin', 'execute', 'cleave'],
   },
 };
 
@@ -89,6 +126,47 @@ export const ENEMIES: Record<string, EnemyDef> = {
     goldReward: 50,
     isBoss: true,
   },
+  skeleton: {
+    id: 'skeleton',
+    name: 'Skeleton',
+    hp: 60,
+    attack: 9,
+    defense: 3,
+    attackSpeed: 2,
+    xpReward: 18,
+    goldReward: 7,
+  },
+  cave_bat: {
+    id: 'cave_bat',
+    name: 'Cave Bat',
+    hp: 35,
+    attack: 7,
+    defense: 1,
+    attackSpeed: 1,
+    xpReward: 12,
+    goldReward: 5,
+  },
+  dark_knight: {
+    id: 'dark_knight',
+    name: 'Dark Knight',
+    hp: 120,
+    attack: 18,
+    defense: 12,
+    attackSpeed: 3,
+    xpReward: 40,
+    goldReward: 20,
+  },
+  stone_golem: {
+    id: 'stone_golem',
+    name: 'Stone Golem',
+    hp: 500,
+    attack: 30,
+    defense: 25,
+    attackSpeed: 4,
+    xpReward: 150,
+    goldReward: 80,
+    isBoss: true,
+  },
 };
 
 export const MAPS: Record<string, MapDef> = {
@@ -116,6 +194,34 @@ export const MAPS: Record<string, MapDef> = {
         id: 'forest_path_3',
         name: 'Stage 3: Troll Lair (Boss)',
         enemies: [{ enemyId: 'forest_troll', count: 1 }],
+        isBoss: true,
+      },
+    ],
+  },
+  stone_caves: {
+    id: 'stone_caves',
+    name: 'Stone Caves',
+    stages: [
+      {
+        id: 'stone_caves_1',
+        name: 'Stage 1: Bat Cavern',
+        enemies: [
+          { enemyId: 'cave_bat', count: 4 },
+          { enemyId: 'skeleton', count: 1 },
+        ],
+      },
+      {
+        id: 'stone_caves_2',
+        name: 'Stage 2: Crypt Hall',
+        enemies: [
+          { enemyId: 'skeleton', count: 3 },
+          { enemyId: 'dark_knight', count: 1 },
+        ],
+      },
+      {
+        id: 'stone_caves_3',
+        name: 'Stage 3: Golem Chamber (Boss)',
+        enemies: [{ enemyId: 'stone_golem', count: 1 }],
         isBoss: true,
       },
     ],
@@ -186,6 +292,70 @@ export const ITEMS: Record<string, ItemDef> = {
     rarity: 'rare',
     stats: { defense: 20, hp: 80 },
   },
+  // Stone Caves drops
+  bone_dagger: {
+    id: 'bone_dagger',
+    name: 'Bone Dagger',
+    slot: 'weapon',
+    rarity: 'common',
+    stats: { attack: 8, crit: 0.04 },
+  },
+  skeleton_helm: {
+    id: 'skeleton_helm',
+    name: 'Skeleton Helm',
+    slot: 'helmet',
+    rarity: 'common',
+    stats: { defense: 7, hp: 25 },
+  },
+  dark_plate: {
+    id: 'dark_plate',
+    name: 'Dark Plate',
+    slot: 'armor',
+    rarity: 'magic',
+    stats: { defense: 14, hp: 50 },
+  },
+  cave_crystal_ring: {
+    id: 'cave_crystal_ring',
+    name: 'Cave Crystal Ring',
+    slot: 'ring',
+    rarity: 'magic',
+    stats: { crit: 0.06, attack: 4 },
+  },
+  golem_gauntlets: {
+    id: 'golem_gauntlets',
+    name: 'Golem Gauntlets',
+    slot: 'gloves',
+    rarity: 'rare',
+    stats: { attack: 12, defense: 8 },
+  },
+  stone_boots: {
+    id: 'stone_boots',
+    name: 'Stone Boots',
+    slot: 'legs',
+    rarity: 'magic',
+    stats: { defense: 10, hp: 35 },
+  },
+  golem_core_amulet: {
+    id: 'golem_core_amulet',
+    name: 'Golem Core Amulet',
+    slot: 'necklace',
+    rarity: 'epic',
+    stats: { hp: 100, attack: 15, defense: 10 },
+  },
+  warrior_belt: {
+    id: 'warrior_belt',
+    name: "Warrior's Belt",
+    slot: 'legs',
+    rarity: 'common',
+    stats: { defense: 5, hp: 20 },
+  },
+  battle_ring: {
+    id: 'battle_ring',
+    name: 'Battle Ring',
+    slot: 'ring',
+    rarity: 'magic',
+    stats: { attack: 8, crit: 0.05 },
+  },
 };
 
 export const MISSIONS: Record<string, MissionDef> = {
@@ -196,6 +366,38 @@ export const MISSIONS: Record<string, MissionDef> = {
     type: 'daily',
     objective: { type: 'kill', count: 10 },
     reward: { gold: 50, xp: 100 },
+  },
+  daily_kill_25: {
+    id: 'daily_kill_25',
+    name: 'Veteran Slayer',
+    description: 'Kill 25 monsters.',
+    type: 'daily',
+    objective: { type: 'kill', count: 25 },
+    reward: { gold: 120, xp: 250 },
+  },
+  clear_forest_boss: {
+    id: 'clear_forest_boss',
+    name: 'Troll Slayer',
+    description: 'Defeat the Forest Troll boss.',
+    type: 'daily',
+    objective: { type: 'defeat_boss', enemyId: 'forest_troll' },
+    reward: { gold: 200, xp: 500 },
+  },
+  clear_stage_1: {
+    id: 'clear_stage_1',
+    name: 'Forest Explorer',
+    description: 'Clear Stage 1: Mossy Trail.',
+    type: 'daily',
+    objective: { type: 'clear_stage', stageId: 'forest_path_1' },
+    reward: { gold: 75, xp: 150 },
+  },
+  clear_caves_boss: {
+    id: 'clear_caves_boss',
+    name: 'Golem Breaker',
+    description: 'Defeat the Stone Golem boss.',
+    type: 'daily',
+    objective: { type: 'defeat_boss', enemyId: 'stone_golem' },
+    reward: { gold: 300, xp: 800 },
   },
 };
 
@@ -218,8 +420,10 @@ export const SEASONS: SeasonDef[] = [
   },
 ];
 
-export const COMMON_ITEM_IDS = ['iron_sword', 'leather_helmet', 'chainmail', 'iron_gauntlets', 'leather_boots', 'copper_ring', 'silver_necklace'];
+export const COMMON_ITEM_IDS = ['iron_sword', 'leather_helmet', 'chainmail', 'iron_gauntlets', 'leather_boots', 'copper_ring', 'silver_necklace', 'bone_dagger', 'skeleton_helm', 'stone_boots', 'warrior_belt'];
 export const BOSS_ITEM_IDS = ['trollbane_sword', 'troll_hide_armor'];
+export const CAVES_COMMON_ITEM_IDS = ['bone_dagger', 'skeleton_helm', 'dark_plate', 'cave_crystal_ring', 'stone_boots', 'warrior_belt'];
+export const CAVES_BOSS_ITEM_IDS = ['golem_gauntlets', 'golem_core_amulet', 'battle_ring'];
 
 // XP table: xp needed to reach level N+1
 export function xpForLevel(level: number): number {

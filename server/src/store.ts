@@ -61,13 +61,11 @@ function createDefaultAccount(accountId: string, token: string): AccountData {
         lastCollectedAt: new Date().toISOString(),
       },
     ],
-    missionProgress: [
-      {
-        missionId: 'daily_kill_10',
-        progress: 0,
-        completed: false,
-      },
-    ],
+    missionProgress: Object.keys(MISSIONS).map(missionId => ({
+      missionId,
+      progress: 0,
+      completed: false,
+    })),
   };
 }
 

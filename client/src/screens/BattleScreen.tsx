@@ -7,13 +7,15 @@ import type { CharacterState } from '@idle-arpg/shared/src/types';
 
 type BattlePhase = 'select' | 'fighting';
 
+const MAX_RESOURCE = 100;
+
 export default function BattleScreen() {
   const { setScreen, character, skillPreset, inventory, setLastBattleResult, setCharacter, setInventory, setProfile, profile } = useGameStore();
   const [phase, setPhase] = useState<BattlePhase>('select');
   const [selectedStageId, setSelectedStageId] = useState<string>('');
   const [selectedStageName, setSelectedStageName] = useState<string>('');
 
-  const map = MAPS['forest_path'];
+  const allMaps = Object.values(MAPS);
 
   function getEffectiveStats() {
     if (!character) return character;
@@ -95,8 +97,11 @@ export default function BattleScreen() {
           attackSpeed: effectiveStats.attackSpeed,
           critChance: effectiveStats.critChance,
           ticksUntilAttack: effectiveStats.attackSpeed,
+          resource: 50,
+          maxResource: MAX_RESOURCE,
         }}
         skillOrder={skillPreset.skillOrder}
+        targetMode={skillPreset.targetMode}
         onComplete={onBattleComplete}
       />
     );
@@ -104,33 +109,41 @@ export default function BattleScreen() {
 
   return (
     <div style={styles.screen}>
-      <NavBar title="⚔️ Battle — Forest Path" onBack={() => setScreen('hub')} />
+      <NavBar title="⚔️ Battle" onBack={() => setScreen('hub')} />
       <div style={styles.content}>
         <p style={{ color: COLORS.textMuted, marginBottom: 16, fontSize: 13 }}>
           Select a stage to begin auto-battle. Your warrior will fight automatically.
         </p>
-        {map.stages.map((stage) => (
-          <div
-            key={stage.id}
-            style={{
-              ...styles.panel,
-              cursor: 'pointer',
-              border: `1px solid ${stage.isBoss ? COLORS.danger : COLORS.border}`,
-              transition: 'border-color 0.2s',
-            }}
-            onClick={() => startBattle(stage.id, stage.name)}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <div style={{ fontWeight: 'bold', fontSize: 15, color: stage.isBoss ? COLORS.danger : COLORS.text }}>
-                {stage.isBoss ? '👹 ' : '⚔️ '}{stage.name}
+        {allMaps.map((map) => (
+          <div key={map.id} style={{ marginBottom: 20 }}>
+            <div style={{ fontWeight: 'bold', color: COLORS.gold, fontSize: 15, marginBottom: 8 }}>
+              🗺️ {map.name}
+            </div>
+            {map.stages.map((stage) => (
+              <div
+                key={stage.id}
+                style={{
+                  ...styles.panel,
+                  cursor: 'pointer',
+                  border: `1px solid ${stage.isBoss ? COLORS.danger : COLORS.border}`,
+                  transition: 'border-color 0.2s',
+                  marginBottom: 8,
+                }}
+                onClick={() => startBattle(stage.id, stage.name)}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <div style={{ fontWeight: 'bold', fontSize: 15, color: stage.isBoss ? COLORS.danger : COLORS.text }}>
+                    {stage.isBoss ? '👹 ' : '⚔️ '}{stage.name}
+                  </div>
+                  {stage.isBoss && (
+                    <span style={{ ...styles.tag('legendary'), fontSize: 11 }}>BOSS</span>
+                  )}
+                </div>
+                <div style={{ fontSize: 12, color: COLORS.textMuted }}>
+                  {stage.enemies.map(({ enemyId, count }) => `${count}× ${enemyId.replace(/_/g, ' ')}`).join(', ')}
+                </div>
               </div>
-              {stage.isBoss && (
-                <span style={{ ...styles.tag('legendary'), fontSize: 11 }}>BOSS</span>
-              )}
-            </div>
-            <div style={{ fontSize: 12, color: COLORS.textMuted }}>
-              {stage.enemies.map(({ enemyId, count }) => `${count}× ${enemyId.replace(/_/g, ' ')}`).join(', ')}
-            </div>
+            ))}
           </div>
         ))}
       </div>

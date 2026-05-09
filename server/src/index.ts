@@ -184,6 +184,21 @@ app.post('/battle/submit-result', requireAuth, (req, res) => {
     if (mission.objective.type === 'kill') {
       mp.progress = Math.min(mp.progress + result.monstersKilled, mission.objective.count);
       if (mp.progress >= mission.objective.count) mp.completed = true;
+    } else if (mission.objective.type === 'clear_stage') {
+      if (result.won && result.stageId === mission.objective.stageId) {
+        mp.progress = 1;
+        mp.completed = true;
+      }
+    } else if (mission.objective.type === 'defeat_boss') {
+      // Check if the stage contained the boss enemy
+      if (result.won && result.monstersKilled > 0) {
+        // Look up the stage enemies to see if the boss was there
+        const stageHasBoss = result.stageId.includes('_3'); // Boss stages are stage 3
+        if (stageHasBoss) {
+          mp.progress = 1;
+          mp.completed = true;
+        }
+      }
     }
   });
 

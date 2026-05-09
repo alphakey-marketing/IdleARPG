@@ -61,19 +61,33 @@ export default function ResultScreen() {
 
         {itemsDropped.length > 0 && (
           <div style={styles.panel}>
-            <div style={{ fontWeight: 'bold', color: COLORS.gold, marginBottom: 10 }}>Items Dropped</div>
+            <div style={{ fontWeight: 'bold', color: COLORS.gold, marginBottom: 10 }}>
+              ✨ Items Dropped ({itemsDropped.length})
+            </div>
             {itemsDropped.map((item) => {
               const def = ITEMS[item.itemDefId];
+              const statsText = def
+                ? Object.entries(def.stats)
+                    .filter(([, v]) => v)
+                    .map(([k, v]) => `${k}: +${typeof v === 'number' && v < 1 ? (v * 100).toFixed(0) + '%' : v}`)
+                    .join(' · ')
+                : '';
               return (
                 <div key={item.id} style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '6px 0',
+                  padding: '8px 0',
                   borderBottom: `1px solid ${COLORS.border}`,
                 }}>
-                  <span style={{ fontWeight: 'bold' }}>{def?.name ?? item.itemDefId}</span>
-                  <span style={styles.tag(item.rarity)}>{item.rarity}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontWeight: 'bold', fontSize: 14 }}>
+                      {def?.name ?? item.itemDefId}
+                    </span>
+                    <span style={styles.tag(item.rarity)}>{item.rarity}</span>
+                  </div>
+                  {statsText && (
+                    <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 2 }}>
+                      {def?.slot} · {statsText}
+                    </div>
+                  )}
                 </div>
               );
             })}

@@ -11,6 +11,8 @@ interface CombatPlayer {
   attackSpeed: number;
   critChance: number;
   ticksUntilAttack: number;
+  resource: number;
+  maxResource: number;
 }
 
 interface Props {
@@ -18,15 +20,16 @@ interface Props {
   stageName: string;
   playerStats: CombatPlayer;
   skillOrder: string[];
+  targetMode: 'boss_first' | 'lowest_hp' | 'closest';
   onComplete: (result: BattleResult & { stageName: string }) => void;
 }
 
-export default function PhaserBattle({ stageId, stageName, playerStats, skillOrder, onComplete }: Props) {
+export default function PhaserBattle({ stageId, stageName, playerStats, skillOrder, targetMode, onComplete }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
   // Capture initial battle config in a ref so Phaser only initialises once on mount.
   // Props are intentionally snapshotted at mount time — a new battle starts a fresh component.
-  const battleConfigRef = useRef({ stageId, stageName, playerStats, skillOrder, onComplete });
+  const battleConfigRef = useRef({ stageId, stageName, playerStats, skillOrder, targetMode, onComplete });
 
   useEffect(() => {
     if (!containerRef.current) return;
