@@ -175,7 +175,8 @@ export class BattleScene extends Phaser.Scene {
       if (!def) return;
       for (let i = 0; i < count; i++) {
         this.enemies.push({
-          def,
+          // Shallow copy def so phase transitions don't mutate the shared ENEMIES object
+          def: { ...def },
           currentHp: def.hp,
           maxHp: def.hp,
           ticksUntilAttack: def.attackSpeed,
@@ -670,8 +671,8 @@ export class BattleScene extends Phaser.Scene {
       this.bossPhaseLabel.setColor(phaseColors[newPhase]);
       this.addLog(`⚠️ ${boss.def.name} enters Phase ${newPhase}!`, ORANGE);
       this.cameras.main.shake(300, 0.012);
-      // Boost boss attack per phase transition
-      boss.def = { ...boss.def, attack: Math.floor(boss.def.attack * 1.3) };
+      // Boost boss attack per phase transition (boss.def is already a local copy from setupEnemies)
+      boss.def.attack = Math.floor(boss.def.attack * 1.3);
       this.addLog(`💀 ${boss.def.name} ATK increased!`, RED);
       // Flash orange
       this.cameras.main.flash(200, 255, 140, 0, false);

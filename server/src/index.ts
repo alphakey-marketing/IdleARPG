@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { v4 as uuidv4 } from 'uuid';
 import { getOrCreateAccount, getAccountByToken, saveAccount } from './store';
-import { IDLE_BUILDINGS, MISSIONS, SEASONS, xpForLevel, ITEMS, CLASSES } from '../../shared/src/gameData';
+import { IDLE_BUILDINGS, MISSIONS, SEASONS, xpForLevel, ITEMS, CLASSES, MAPS, ENEMIES } from '../../shared/src/gameData';
 import type { BattleResult, InventoryItem, MissionProgress } from '../../shared/src/types';
 
 const app = express();
@@ -190,11 +190,21 @@ app.post('/battle/submit-result', requireAuth, (req, res) => {
         mp.completed = true;
       }
     } else if (mission.objective.type === 'defeat_boss') {
-      // Check if the stage contained the boss enemy
-      if (result.won && result.monstersKilled > 0) {
-        // Look up the stage enemies to see if the boss was there
-        const stageHasBoss = result.stageId.includes('_3'); // Boss stages are stage 3
-        if (stageHasBoss) {
+      if (result.won) {
+        // Find the stage definition and check if it contains the target boss enemy
+        const targetEnemyId = mission.objective.enemyId;
+        let stageContainsBoss = false;
+        for (const map of Object.values(MAPS)) {
+          const stage = map.stages.find(s => s.id === result.stageId);
+          if (stage) {
+            stageContainsBoss = stage.enemies.some(e => {
+              const enemyDef = ENEMIES[e.enemyId];
+              return enemyDef?.id === targetEnemyId;
+            });
+            break;
+          }
+        }
+        if (stageContainsBoss) {
           mp.progress = 1;
           mp.completed = true;
         }
