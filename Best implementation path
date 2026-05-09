@@ -1,0 +1,14 @@
+
+## Best implementation path
+
+If you want the lowest-risk path, I would build in this order:
+
+1. **TypeScript project setup.**
+2. **Phaser battle prototype.**
+3. **Basic UI shell with React or DOM.**
+4. **Skill setup screen.**
+5. **Inventory and equipment screen.**
+6. **Idle building screen.**
+7. **Season progress and reset logic.**
+8. **Backend save sync.**
+9. **Audio and polish.**

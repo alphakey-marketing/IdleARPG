@@ -1,0 +1,757 @@
+# Seasonal Idle ARPG  
+## Technical Architecture Specification v1.0
+
+## 1. Document Purpose
+
+This document defines the technical architecture for the browser version of Seasonal Idle ARPG. It is intended to guide frontend, backend, UI, and systems implementation for the first playable version and future seasonal expansion.
+
+The architecture prioritizes:
+- Fast browser load time.
+- Clear separation between combat and management UI.
+- Deterministic, data-driven combat.
+- Seasonal reset support.
+- Easy content expansion.
+
+## 2. Architecture Goals
+
+### 2.1 Product Goals
+- Support short, repeatable play sessions.
+- Enable automated combat and idle progression.
+- Make seasonal resets safe and easy to operate.
+- Keep the client lightweight and browser-friendly.
+
+### 2.2 Engineering Goals
+- Use a maintainable, typed codebase.
+- Separate game logic from presentation.
+- Make combat deterministic and testable.
+- Support rapid iteration on content and balance.
+- Keep the architecture simple enough for a small team.
+
+### 2.3 Non-Goals
+- Real-time multiplayer combat.
+- Open-world streaming.
+- 3D rendering.
+- Heavy physics simulation.
+- Complex authoritative action networking.
+
+## 3. Recommended Stack
+
+### 3.1 Frontend
+- **Language:** TypeScript
+- **Game engine:** Phaser 3
+- **App bundler:** Vite
+- **UI framework:** React for non-combat menus, or a DOM-based UI layer if you want lower integration complexity
+- **State layer:** Zustand or a lightweight event/store system
+- **Audio:** Web Audio API or Phaser audio system
+
+Phaser is well suited to desktop and mobile HTML5 games, and the Phaser + Vite template is an official starting point for this kind of workflow. [phaser](https://phaser.io/news/2024/01/phaser-vite-template)
+React is recommended only for app-like screens such as inventory, skill setup, season progress, settings, and mission boards, while Phaser owns battle scenes and rendering-heavy gameplay. [gamineai](https://gamineai.com/blog/game-development-with-typescript-building-browser-games-modern-javascript)
+
+### 3.2 Backend
+- **Runtime:** Node.js
+- **API style:** REST for core game operations
+- **Realtime:** WebSocket only if needed later for leaderboards, live events, or synchronized seasonal content
+- **Database:** PostgreSQL
+- **Cache / queue:** Redis optional, recommended once scale or seasonal jobs grow
+
+### 3.3 DevOps
+- **Source control:** Git
+- **CI:** GitHub Actions or similar
+- **Hosting:** Static frontend CDN + backend service host + managed PostgreSQL
+- **Observability:** application logs, error tracking, basic analytics
+
+***
+
+# 4. High-Level System Overview
+
+## 4.1 Client Responsibilities
+The client is responsible for:
+- Rendering the battle scene.
+- Rendering the UI and menus.
+- Collecting player inputs.
+- Managing local temporary state.
+- Displaying progression, inventory, and season information.
+- Sending actions to backend endpoints.
+- Caching data for fast resume.
+
+## 4.2 Server Responsibilities
+The server is responsible for:
+- Authentication.
+- Saving and loading account state.
+- Validating progression actions.
+- Storing inventory, builds, season state, and rewards.
+- Running server-side seasonal resets and reward distribution.
+- Optional leaderboard tracking.
+
+## 4.3 Shared Responsibilities
+Some logic may exist in both client and server:
+- Data-driven skill definitions.
+- Item definitions.
+- Class/archetype definitions.
+- Seasonal modifier definitions.
+
+The server is the source of truth for persistent data. The client may simulate battles for responsiveness, but final rewards and progression state should be validated or reconciled by the server.
+
+***
+
+# 5. Client Architecture
+
+## 5.1 Client Layer Model
+
+### A. App Shell
+The app shell is the top-level entry point. It handles:
+- boot sequence,
+- auth state,
+- routing between screens,
+- global overlays,
+- save sync,
+- feature flags,
+- error boundaries.
+
+### B. UI Layer
+This layer handles:
+- hub screens,
+- inventory,
+- skills,
+- season panels,
+- missions,
+- settings,
+- modal dialogs,
+- tooltips.
+
+Recommended implementation:
+- React if you want component-driven app screens.
+- DOM-based TypeScript UI if you want maximum simplicity.
+- Do not place heavy management UI directly inside Phaser scenes unless absolutely necessary.
+
+### C. Phaser Game Layer
+This layer handles:
+- map scene rendering,
+- enemy spawning,
+- auto-battle,
+- hit effects,
+- damage text,
+- boss phases,
+- battle overlays,
+- camera effects,
+- scene transitions.
+
+## 5.2 Client Runtime Flow
+
+1. Browser loads app shell.
+2. App shell loads auth/session state.
+3. Player lands in hub.
+4. UI layer renders account and season state.
+5. Player starts battle.
+6. Phaser scene loads map and battle entities.
+7. Combat simulation runs.
+8. Results are sent to backend.
+9. UI updates with rewards and new state.
+
+## 5.3 Client Scene List
+Recommended scenes:
+- BootScene
+- PreloadScene
+- HubScene
+- BattleScene
+- ResultScene
+- SeasonScene
+- SettingsOverlay
+- ErrorScene
+
+## 5.4 Client Data Flow
+Client should separate:
+- **view state**: what is being displayed.
+- **game state**: combat / progression logic state.
+- **server state**: authoritative account state.
+
+This avoids tangled logic and makes debugging much easier.
+
+***
+
+# 6. Frontend Technical Choices
+
+## 6.1 Phaser Usage
+Use Phaser for:
+- battle maps,
+- enemies and projectiles,
+- animation playback,
+- visual combat feedback,
+- lightweight in-battle HUD.
+
+Reason:
+Phaser is designed for browser-based 2D games and supports Canvas/WebGL rendering for this type of product. [blog.logrocket](https://blog.logrocket.com/best-javascript-html5-game-engines-2025/)
+
+## 6.2 React Usage
+Use React for:
+- inventory lists,
+- item compare panels,
+- build setup screens,
+- skill trees,
+- missions,
+- season timeline,
+- settings.
+
+Reason:
+These screens behave more like application panels than real-time gameplay, and React is a better fit for structured form/state interaction. [linkedin](https://www.linkedin.com/posts/probietech_reactjs-phaserjs-webgamedevelopment-activity-7382342476675825665-bPP9)
+
+## 6.3 Why Not Everything in React
+Avoid using React as the primary game engine.  
+For combat-heavy rendering, a dedicated game layer is cleaner and more performant.
+
+## 6.4 Vite Usage
+Vite should be used for:
+- dev server,
+- HMR,
+- production bundling,
+- asset loading optimization,
+- environment variable injection.
+
+The official Phaser + Vite template supports this exact setup. [phaser](https://phaser.io/news/2024/01/phaser-vite-template)
+
+***
+
+# 7. Backend Architecture
+
+## 7.1 Backend Pattern
+Use a modular Node.js backend with REST endpoints.
+
+### Core backend modules:
+- auth
+- account
+- progression
+- inventory
+- build presets
+- season
+- missions
+- leaderboard
+- admin tools
+
+## 7.2 Why REST First
+REST is sufficient for:
+- login/logout,
+- loading player data,
+- saving build changes,
+- claiming rewards,
+- battle result submission,
+- season endpoints.
+
+WebSockets should be deferred until you actually need live seasonal events or real-time leaderboard updates.
+
+## 7.3 Server Authority Model
+The server should be authoritative over:
+- currencies,
+- inventory,
+- season reset state,
+- progression unlocks,
+- reward claims,
+- mission completion.
+
+The client may run local simulations for responsiveness, but the server should verify or reconcile outcomes that affect persistent state.
+
+## 7.4 Job Processing
+Seasonal operations may require background jobs:
+- reset season progress,
+- distribute season rewards,
+- archive old season data,
+- compute ranking snapshots.
+
+Redis plus a worker process is a good future upgrade if these jobs grow.
+
+***
+
+# 8. Database Architecture
+
+## 8.1 Recommended Database
+Use PostgreSQL as the primary database.
+
+## 8.2 Core Tables
+
+### accounts
+- id
+- email / external auth id
+- created_at
+- last_login_at
+- region
+- status
+
+### player_profile
+- account_id
+- current_season_id
+- account_level
+- cosmetics_unlocks
+- titles
+- logbook_completion
+
+### character_state
+- account_id
+- class_id
+- level
+- xp
+- stats
+- current_hp
+- current_energy
+- current_zone
+- last_updated_at
+
+### inventory_items
+- id
+- account_id
+- item_def_id
+- rarity
+- affixes
+- equipped_slot
+- created_at
+
+### skill_presets
+- id
+- account_id
+- preset_name
+- class_id
+- skill_order_json
+- target_rules_json
+- auto_conditions_json
+
+### idle_buildings
+- id
+- account_id
+- building_type
+- level
+- current_production
+- last_collected_at
+
+### season_state
+- account_id
+- season_id
+- season_progress
+- seasonal_currency
+- season_missions
+- reset_history
+
+### mission_progress
+- account_id
+- mission_id
+- progress
+- completed_at
+
+### leaderboard_entries
+- season_id
+- account_id
+- score
+- rank_snapshot_at
+
+## 8.3 Data Principles
+- Store persistent progress in normalized form where possible.
+- Store dynamic build rules in JSON only if the structure is stable enough.
+- Keep item and skill definitions in content files or config tables rather than hardcoding them in the database.
+
+***
+
+# 9. Game Data Architecture
+
+## 9.1 Data-Driven Design
+All major gameplay content should be data-driven:
+- classes
+- skills
+- items
+- enemies
+- map nodes
+- season modifiers
+- missions
+
+## 9.2 Content File Format
+Recommended formats:
+- JSON for runtime data.
+- YAML if your team prefers human readability for design iteration.
+- CSV for balancing spreadsheets.
+
+## 9.3 Data Loading Flow
+1. Client loads static game definitions.
+2. Server loads authoritative content pack version.
+3. Client compares version hash.
+4. Mismatched definitions trigger reload or patch flow.
+
+## 9.4 Definition Versioning
+Every content table should have:
+- version number,
+- last updated timestamp,
+- optional migration notes.
+
+This is important for seasonal updates because the game will change every 14 days.
+
+***
+
+# 10. Combat Engine Architecture
+
+## 10.1 Combat Simulation Model
+Combat should be deterministic and tick-based.
+
+### Suggested approach:
+- Use a fixed time tick, such as 0.5s or 1.0s.
+- At each tick, resolve:
+  - movement,
+  - attacks,
+  - skill triggers,
+  - status effects,
+  - cooldowns,
+  - death checks.
+
+This is easier to debug than fully frame-precise logic and fits auto-battle design well.
+
+## 10.2 Combat Engine Modules
+- CombatState
+- EntityManager
+- SkillResolver
+- TargetSelector
+- DamageCalculator
+- StatusEffectSystem
+- LootResolver
+- BossPhaseController
+
+## 10.3 Deterministic Rules
+The battle engine should resolve actions in a consistent order:
+1. Defensive emergency actions.
+2. Boss-phase-triggered actions.
+3. Highest-priority skill.
+4. Basic attack fallback.
+5. Status cleanup and tick effects.
+
+## 10.4 Client vs Server Combat
+Two valid options exist:
+
+### Option A: Client-authoritative battle, server-validated rewards
+Good for faster implementation.
+
+### Option B: Server-authoritative battle simulation
+Better for anti-cheat and consistency, but more costly.
+
+For your game, I recommend **Option A for MVP**, then upgrading sensitive systems later if needed.
+
+***
+
+# 11. Rendering and Asset Pipeline
+
+## 11.1 Rendering Approach
+Use 2D sprite-based presentation:
+- sprite sheets,
+- atlas textures,
+- light particle effects,
+- screen-space damage numbers.
+
+## 11.2 Asset Categories
+- character sprites,
+- enemy sprites,
+- skill VFX,
+- UI icons,
+- item icons,
+- seasonal theme assets,
+- audio assets.
+
+## 11.3 Asset Loading Strategy
+- Lazy-load battle assets only when entering battle.
+- Preload UI assets for hub screens.
+- Cache common atlases.
+- Use progressive loading for large seasonal content.
+
+## 11.4 Performance Budget
+Keep the game lightweight:
+- avoid large texture count per scene,
+- avoid excessive DOM overlays during battle,
+- keep particle counts controlled,
+- avoid unnecessary allocations in combat ticks.
+
+***
+
+# 12. State Management Architecture
+
+## 12.1 State Categories
+### Local transient state
+- current screen,
+- opened modal,
+- hover state,
+- current battle scene state.
+
+### Session state
+- current build preset,
+- current selected map,
+- temporary battle conditions.
+
+### Persistent state
+- account progression,
+- inventory,
+- class unlocks,
+- season state.
+
+## 12.2 State Store Strategy
+Recommended approach:
+- one global store for high-level app state,
+- one combat store for battle runtime,
+- one server sync layer for persistence.
+
+## 12.3 State Update Rules
+- Combat state updates should be isolated.
+- UI state should never mutate server state directly.
+- All persistent actions should go through an action service.
+
+***
+
+# 13. API Design
+
+## 13.1 Core Endpoints
+
+### Auth
+- `POST /auth/login`
+- `POST /auth/logout`
+- `GET /auth/session`
+
+### Profile
+- `GET /player/profile`
+- `PATCH /player/profile`
+
+### Character
+- `GET /character/state`
+- `PATCH /character/state`
+
+### Inventory
+- `GET /inventory`
+- `POST /inventory/equip`
+- `POST /inventory/unequip`
+- `POST /inventory/discard`
+
+### Skills
+- `GET /skills/presets`
+- `POST /skills/presets`
+- `PATCH /skills/presets/:id`
+
+### Idle
+- `GET /idle/buildings`
+- `PATCH /idle/buildings/:id/upgrade`
+- `POST /idle/collect`
+
+### Battle
+- `POST /battle/start`
+- `POST /battle/submit-result`
+- `GET /battle/reward-summary/:id`
+
+### Season
+- `GET /season/current`
+- `GET /season/progress`
+- `POST /season/claim`
+- `GET /season/reset-preview`
+
+### Missions
+- `GET /missions/daily`
+- `GET /missions/seasonal`
+- `POST /missions/claim`
+
+### Admin
+- `POST /admin/season/reset`
+- `POST /admin/content/publish`
+
+## 13.2 API Principles
+- Keep payloads explicit and typed.
+- Use idempotent endpoints where possible.
+- Separate read and write endpoints cleanly.
+- Return version hashes with content requests.
+
+***
+
+# 14. Security and Validation
+
+## 14.1 Security Goals
+- Prevent reward duplication.
+- Prevent invalid inventory state.
+- Prevent season state corruption.
+- Reduce client-side tampering impact.
+
+## 14.2 Validation Rules
+Server should validate:
+- currency changes,
+- reward claims,
+- item equips,
+- preset edits,
+- season resets,
+- mission completion.
+
+## 14.3 Anti-Cheat Strategy
+For MVP:
+- trust the client for battle simulation.
+- validate the final reward outcome on the server.
+- reject impossible state transitions.
+- log suspicious action patterns.
+
+***
+
+# 15. Performance Requirements
+
+## 15.1 Client Performance Targets
+- Fast initial load.
+- Battle scene transitions under 1 second.
+- Stable FPS on modern browsers.
+- Low memory spikes between hub and battle.
+
+## 15.2 Backend Performance Targets
+- Fast account load.
+- Save writes under a few hundred milliseconds under normal load.
+- Season reset jobs should run in batches if needed.
+
+## 15.3 Scaling Assumptions
+This is a seasonal browser game, so the biggest traffic spikes will likely happen:
+- at season start,
+- at season end,
+- after content updates.
+
+Architect the backend so seasonal bursts do not cause downtime.
+
+***
+
+# 16. Deployment Architecture
+
+## 16.1 Environments
+- Local
+- Dev
+- Staging
+- Production
+
+## 16.2 Deployment Split
+### Frontend
+- Static hosting on CDN or web host.
+
+### Backend
+- Node.js service container.
+
+### Database
+- Managed PostgreSQL.
+
+### Optional Cache / Queue
+- Redis.
+
+## 16.3 Release Flow
+1. Merge to main branch.
+2. Deploy to staging.
+3. Validate content and season version.
+4. Deploy to production.
+5. Monitor logs and error rates.
+
+***
+
+# 17. Logging and Analytics
+
+## 17.1 Logging
+Track:
+- login success/failure,
+- battle start/end,
+- reward claims,
+- mission completion,
+- season reset actions,
+- server errors.
+
+## 17.2 Analytics Events
+Track:
+- session length,
+- battle completion rate,
+- idle collection frequency,
+- build preset usage,
+- season retention,
+- boss failure points,
+- class popularity.
+
+These metrics will be critical for balancing a seasonal retention game.
+
+***
+
+# 18. Testing Strategy
+
+## 18.1 Frontend Testing
+- unit tests for utility and combat math,
+- integration tests for UI flows,
+- smoke tests for scene loading.
+
+## 18.2 Backend Testing
+- API contract tests,
+- reward validation tests,
+- season reset tests,
+- inventory integrity tests.
+
+## 18.3 Simulation Testing
+Combat logic should be testable through automated simulation scripts:
+- repeated battle runs,
+- build comparison,
+- boss difficulty scaling,
+- loot expectation checks.
+
+***
+
+# 19. Future Expansion Paths
+
+## 19.1 Phase 2
+- additional classes,
+- more season modifiers,
+- stronger leaderboard features,
+- build presets sharing.
+
+## 19.2 Phase 3
+- guilds,
+- social leaderboard events,
+- special challenge maps,
+- rare seasonal world events.
+
+## 19.3 Optional Later Tech
+- WebSocket for live event state.
+- Redis for event and leaderboard scaling.
+- server-side combat validation if anti-cheat becomes important.
+
+***
+
+# 20. Implementation Milestones
+
+## Milestone 1: Core Prototype
+- Phaser scene boot
+- basic battle loop
+- one class
+- one skill
+- one enemy
+- one loot reward
+
+## Milestone 2: Vertical Slice
+- hub
+- inventory
+- skill preset
+- idle building
+- boss battle
+- server save/load
+
+## Milestone 3: Season MVP
+- season reset
+- seasonal missions
+- seasonal currency
+- end-of-season summary
+
+## Milestone 4: Content Expansion
+- more classes
+- more skills
+- more enemies
+- more seasonal modifiers
+
+***
+
+# 21. Final Recommendation
+
+For this game, the best architecture is:
+
+- **Frontend:** TypeScript + Phaser 3 + Vite.
+- **Management UI:** React or DOM-based typed UI.
+- **Backend:** Node.js REST API.
+- **Database:** PostgreSQL.
+- **Optional scale tools later:** Redis + WebSocket.
+
+This gives you a browser-native stack that is fast to iterate on, easy to expand seasonally, and suitable for a small team building a content-driven auto-battle idle ARPG. [phaser](https://phaser.io)
+
+***
+
+If you want, I can do the next step and turn this into a **repo-ready engineering spec** with:
+- folder structure,
+- interface/type definitions,
+- database schema SQL,
+- API request/response examples,
+- and a recommended monorepo layout.
