@@ -242,5 +242,5 @@ app.post('/admin/season/reset', (_req, res) => {
   res.json({ message: 'Season reset scheduled (MVP stub)' });
 });
 
-const PORT = process.env.PORT ?? 3001;
+const PORT = parseInt(process.env.PORT ?? '3001', 10);
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

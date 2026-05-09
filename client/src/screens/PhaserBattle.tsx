@@ -24,6 +24,9 @@ interface Props {
 export default function PhaserBattle({ stageId, stageName, playerStats, skillOrder, onComplete }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
+  // Capture initial battle config in a ref so Phaser only initialises once on mount.
+  // Props are intentionally snapshotted at mount time — a new battle starts a fresh component.
+  const battleConfigRef = useRef({ stageId, stageName, playerStats, skillOrder, onComplete });
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -41,19 +44,14 @@ export default function PhaserBattle({ stageId, stageName, playerStats, skillOrd
     gameRef.current = game;
 
     game.events.once('ready', () => {
-      game.scene.start('BattleScene', {
-        stageId,
-        stageName,
-        playerStats,
-        skillOrder,
-        onComplete,
-      });
+      game.scene.start('BattleScene', battleConfigRef.current);
     });
 
     return () => {
       game.destroy(true);
       gameRef.current = null;
     };
+  // Battle config is snapshotted via ref; the effect must only run once on mount.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
