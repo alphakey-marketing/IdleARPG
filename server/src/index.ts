@@ -2,8 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import { v4 as uuidv4 } from 'uuid';
 import { getOrCreateAccount, getAccountByToken, saveAccount } from './store';
-import { IDLE_BUILDINGS, MISSIONS, SEASONS, xpForLevel, ITEMS, CLASSES } from '../../shared/src/gameData';
+import { IDLE_BUILDINGS, MISSIONS, SEASONS, xpForLevel, ITEMS, CLASSES, MAPS, ENEMIES } from '../../shared/src/gameData';
 import type { BattleResult, InventoryItem, MissionProgress } from '../../shared/src/types';
+
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
 const app = express();
 app.use(cors());
@@ -153,6 +155,14 @@ app.post('/battle/submit-result', requireAuth, (req, res) => {
   const account = (req as AuthRequest).account;
   const result = req.body as BattleResult;
 
+  // Track cleared stages
+  if (result.won) {
+    if (!account.character.clearedStages) account.character.clearedStages = [];
+    if (!account.character.clearedStages.includes(result.stageId)) {
+      account.character.clearedStages.push(result.stageId);
+    }
+  }
+
   // Grant gold
   account.profile.gold += result.goldGained;
 
@@ -184,6 +194,31 @@ app.post('/battle/submit-result', requireAuth, (req, res) => {
     if (mission.objective.type === 'kill') {
       mp.progress = Math.min(mp.progress + result.monstersKilled, mission.objective.count);
       if (mp.progress >= mission.objective.count) mp.completed = true;
+    } else if (mission.objective.type === 'clear_stage') {
+      if (result.won && result.stageId === mission.objective.stageId) {
+        mp.progress = 1;
+        mp.completed = true;
+      }
+    } else if (mission.objective.type === 'defeat_boss') {
+      if (result.won) {
+        // Find the stage definition and check if it contains the target boss enemy
+        const targetEnemyId = mission.objective.enemyId;
+        let stageContainsBoss = false;
+        for (const map of Object.values(MAPS)) {
+          const stage = map.stages.find(s => s.id === result.stageId);
+          if (stage) {
+            stageContainsBoss = stage.enemies.some(e => {
+              const enemyDef = ENEMIES[e.enemyId];
+              return enemyDef?.id === targetEnemyId;
+            });
+            break;
+          }
+        }
+        if (stageContainsBoss) {
+          mp.progress = 1;
+          mp.completed = true;
+        }
+      }
     }
   });
 
@@ -193,6 +228,7 @@ app.post('/battle/submit-result', requireAuth, (req, res) => {
     newXp: account.character.xp,
     newGold: account.profile.gold,
     newStats: account.character.stats,
+    clearedStages: account.character.clearedStages ?? [],
     missionProgress: account.missionProgress,
   });
 });
@@ -205,6 +241,20 @@ app.get('/season/current', (_req, res) => {
 // GET /missions/daily
 app.get('/missions/daily', requireAuth, (req, res) => {
   const account = (req as AuthRequest).account;
+
+  // 24-hour daily reset
+  const now = Date.now();
+  const lastReset = account.lastMissionReset ? new Date(account.lastMissionReset).getTime() : 0;
+  if (now - lastReset > DAY_IN_MS) {
+    account.missionProgress.forEach((mp: MissionProgress) => {
+      mp.progress = 0;
+      mp.completed = false;
+      delete mp.claimedAt;
+    });
+    account.lastMissionReset = new Date().toISOString();
+    saveAccount(account);
+  }
+
   const result = account.missionProgress.map((mp: MissionProgress) => ({
     ...mp,
     definition: MISSIONS[mp.missionId],
