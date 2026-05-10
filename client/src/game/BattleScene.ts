@@ -49,6 +49,7 @@ const BLUE = 0x4a90d9;
 const PURPLE = 0xc060ff;
 const WHITE = 0xe0e0e0;
 const ORANGE = 0xff8c00;
+const EXECUTE_HP_THRESHOLD = 0.3; // Execute deals 2× damage below this HP fraction
 
 export class BattleScene extends Phaser.Scene {
   private config!: BattleConfig;
@@ -239,6 +240,10 @@ export class BattleScene extends Phaser.Scene {
       cave_bat: '🦇',
       dark_knight: '🖤',
       stone_golem: '🗿',
+      forest_spider: '🕷️',
+      forest_shaman: '🧙',
+      cave_troll: '👿',
+      dark_mage: '🧙‍♂️',
     };
     return map[id] ?? '👾';
   }
@@ -365,19 +370,32 @@ export class BattleScene extends Phaser.Scene {
       const noResource = this.player.resource < skill.resourceCost;
       const dim = onCooldown || noResource;
 
-      if (isBossStage) {
-        bg.clear();
-        bg.fillStyle(dim ? 0x111122 : 0x1a1a2e);
-        bg.lineStyle(1, onCooldown ? 0x555555 : (noResource ? 0x222244 : 0x2a2a4a));
-        bg.fillRoundedRect(x, y, 100, 54, 6);
-      }
+      // Buff active state: show gold glow
+      const isBuffActive = (id === 'battle_cry' && this.buffTicks > 0) || (id === 'iron_skin' && this.defenseBuffTicks > 0);
+      const activeTicks = id === 'battle_cry' ? this.buffTicks : (id === 'iron_skin' ? this.defenseBuffTicks : 0);
 
-      if (onCooldown) {
-        cdText.setText(`⏳${this.skillCooldowns[id]}t | ⚡${skill.resourceCost}`);
-        cdText.setColor('#666666');
+      if (isBuffActive) {
+        bg.clear();
+        bg.fillStyle(0x1a1a2e);
+        bg.lineStyle(2, 0xd4a017);
+        bg.fillRoundedRect(x, y, 100, 54, 6);
+        cdText.setText(`✨ Active (${activeTicks}t)`);
+        cdText.setColor('#d4a017');
       } else {
-        cdText.setText(`CD: ${skill.cooldown}t | ⚡${skill.resourceCost}`);
-        cdText.setColor(noResource ? '#555577' : '#888888');
+        if (isBossStage) {
+          bg.clear();
+          bg.fillStyle(dim ? 0x111122 : 0x1a1a2e);
+          bg.lineStyle(1, onCooldown ? 0x555555 : (noResource ? 0x222244 : 0x2a2a4a));
+          bg.fillRoundedRect(x, y, 100, 54, 6);
+        }
+
+        if (onCooldown) {
+          cdText.setText(`⏳${this.skillCooldowns[id]}t | ⚡${skill.resourceCost}`);
+          cdText.setColor('#666666');
+        } else {
+          cdText.setText(`CD: ${skill.cooldown}t | ⚡${skill.resourceCost}`);
+          cdText.setColor(noResource ? '#555577' : '#888888');
+        }
       }
     });
   }
@@ -588,12 +606,40 @@ export class BattleScene extends Phaser.Scene {
         return;
       }
 
+      if (skill.id === 'cleave') {
+        // Hit up to 2 alive enemies
+        const targets = this.enemies.filter(e => e.alive).slice(0, 2);
+        if (targets.length === 0) return;
+        targets.forEach(target => {
+          const isCrit = Math.random() < this.player.critChance;
+          let dmg = Math.max(1, this.player.attack + skill.damage - target.def.defense);
+          if (isCrit) dmg = Math.floor(dmg * 2);
+          target.currentHp = Math.max(0, target.currentHp - dmg);
+          const pos = this.getEnemyScreenPosition(target);
+          this.spawnDamageText(pos.x, pos.y, isCrit ? `💥${dmg}` : `${dmg}`, isCrit ? '#ffd700' : '#ff8c00');
+          this.addLog(`⚔️ Cleave: ${dmg} on ${target.def.name}${isCrit ? ' CRIT!' : ''}`, ORANGE);
+          if (target.currentHp <= 0) {
+            target.alive = false;
+            this.xpGained += target.def.xpReward;
+            this.goldGained += target.def.goldReward;
+            this.monstersKilled++;
+            this.addLog(`${target.def.name} defeated! +${target.def.xpReward}xp +${target.def.goldReward}g`, GOLD);
+            this.rollItemDrop(target.def);
+          }
+        });
+        this.drawEnemies();
+        if (this.enemies.every(e => !e.alive)) {
+          this.endBattle(true);
+        }
+        return;
+      }
+
       const target = this.pickTarget();
       if (!target) return;
       const isCrit = Math.random() < this.player.critChance;
       let dmg = Math.max(1, this.player.attack + skill.damage - target.def.defense);
-      // Execute bonus: 2x damage below 30% HP
-      if (skill.id === 'execute' && target.currentHp / target.maxHp < 0.3) {
+      // Execute bonus: 2× damage below the execute threshold HP fraction
+      if (skill.id === 'execute' && target.currentHp / target.maxHp < EXECUTE_HP_THRESHOLD) {
         dmg *= 2;
       }
       if (isCrit) dmg = Math.floor(dmg * 2);
@@ -669,13 +715,29 @@ export class BattleScene extends Phaser.Scene {
       const phaseColors = ['', '#ffff00', '#ff8c00', '#e05c5c'];
       this.bossPhaseLabel.setText(`⚠️ BOSS PHASE ${newPhase}!`);
       this.bossPhaseLabel.setColor(phaseColors[newPhase]);
+      this.bossPhaseLabel.setAlpha(1);
       this.addLog(`⚠️ ${boss.def.name} enters Phase ${newPhase}!`, ORANGE);
       this.cameras.main.shake(300, 0.012);
-      // Boost boss attack per phase transition (boss.def is already a local copy from setupEnemies)
+      // Boost boss attack per phase transition
       boss.def.attack = Math.floor(boss.def.attack * 1.3);
       this.addLog(`💀 ${boss.def.name} ATK increased!`, RED);
-      // Flash orange
-      this.cameras.main.flash(200, 255, 140, 0, false);
+      // Flash: red for phase 3, orange for phase 2
+      if (newPhase === 3) {
+        this.cameras.main.flash(300, 255, 0, 0, false);
+      } else {
+        this.cameras.main.flash(200, 255, 140, 0, false);
+      }
+      // Fade out the phase label after 2 seconds
+      this.time.delayedCall(2000, () => {
+        this.tweens.add({
+          targets: this.bossPhaseLabel,
+          alpha: 0,
+          duration: 500,
+          onComplete: () => {
+            this.bossPhaseLabel.setText('').setAlpha(1);
+          },
+        });
+      });
     }
   }
 

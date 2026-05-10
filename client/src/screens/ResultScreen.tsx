@@ -4,7 +4,7 @@ import { ITEMS } from '@idle-arpg/shared/src/gameData';
 import { COLORS, styles, NavBar } from '../ui';
 
 export default function ResultScreen() {
-  const { lastBattleResult, setScreen } = useGameStore();
+  const { lastBattleResult, setScreen, setPendingBattleStage } = useGameStore();
 
   if (!lastBattleResult) {
     return (
@@ -15,7 +15,12 @@ export default function ResultScreen() {
     );
   }
 
-  const { won, xpGained, goldGained, itemsDropped, monstersKilled, stageName } = lastBattleResult;
+  const { won, xpGained, goldGained, itemsDropped, monstersKilled, stageName, stageId } = lastBattleResult;
+
+  function handleRepeat() {
+    setPendingBattleStage({ stageId, stageName });
+    setScreen('battle');
+  }
 
   return (
     <div style={styles.screen}>
@@ -69,7 +74,7 @@ export default function ResultScreen() {
               const statsText = def
                 ? Object.entries(def.stats)
                     .filter(([, v]) => v)
-                    .map(([k, v]) => `${k}: +${typeof v === 'number' && v < 1 ? (v * 100).toFixed(0) + '%' : v}`)
+                    .map(([k, v]) => `+${typeof v === 'number' && v < 1 ? (v * 100).toFixed(0) + '%' : v} ${k.toUpperCase()}`)
                     .join(' · ')
                 : '';
               return (
@@ -83,9 +88,9 @@ export default function ResultScreen() {
                     </span>
                     <span style={styles.tag(item.rarity)}>{item.rarity}</span>
                   </div>
-                  {statsText && (
+                  {def && (
                     <div style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 2 }}>
-                      {def?.slot} · {statsText}
+                      {def.slot}{statsText ? ` · ${statsText}` : ''}
                     </div>
                   )}
                 </div>
@@ -94,13 +99,21 @@ export default function ResultScreen() {
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button style={styles.btn} onClick={() => setScreen('battle')}>
-            ⚔️ Battle Again
-          </button>
-          <button style={styles.btnSecondary} onClick={() => setScreen('hub')}>
-            🏠 Hub
-          </button>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {won ? (
+            <>
+              <button style={styles.btn} onClick={handleRepeat}>
+                🔄 Repeat Stage
+              </button>
+              <button style={styles.btnSecondary} onClick={() => setScreen('hub')}>
+                🏠 Return to Hub
+              </button>
+            </>
+          ) : (
+            <button style={styles.btnSecondary} onClick={() => setScreen('hub')}>
+              🏠 Return to Hub
+            </button>
+          )}
         </div>
       </div>
     </div>

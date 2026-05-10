@@ -9,6 +9,7 @@ export interface AccountData {
   skillPreset: SkillPreset;
   idleBuildings: IdleBuilding[];
   missionProgress: MissionProgress[];
+  lastMissionReset: string;
   sessionToken: string;
   createdAt: string;
   lastLoginAt: string;
@@ -46,6 +47,7 @@ function createDefaultAccount(accountId: string, token: string): AccountData {
         critChance: warrior.baseStats.critChance,
       },
       equippedItems: {},
+      clearedStages: [],
     },
     inventory: [],
     skillPreset: {
@@ -66,6 +68,7 @@ function createDefaultAccount(accountId: string, token: string): AccountData {
       progress: 0,
       completed: false,
     })),
+    lastMissionReset: new Date().toISOString(),
   };
 }
 

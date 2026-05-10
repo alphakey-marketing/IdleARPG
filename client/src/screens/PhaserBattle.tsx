@@ -40,14 +40,17 @@ export default function PhaserBattle({ stageId, stageName, playerStats, skillOrd
       height: window.innerHeight,
       backgroundColor: '#0a0a0f',
       parent: containerRef.current,
-      scene: BattleScene,
+      // Do NOT include `scene` here — Phaser would auto-boot it without config data,
+      // causing BattleScene.create() to crash (this.config undefined → black screen).
     };
 
     const game = new Phaser.Game(config);
     gameRef.current = game;
 
+    // Add and start the scene only after the game engine is ready, passing battleConfig
+    // as the `data` argument so BattleScene.init() receives it correctly.
     game.events.once('ready', () => {
-      game.scene.start('BattleScene', battleConfigRef.current);
+      game.scene.add('BattleScene', BattleScene, true, battleConfigRef.current);
     });
 
     return () => {

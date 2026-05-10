@@ -103,6 +103,7 @@ export interface CharacterState {
     critChance: number;
   };
   equippedItems: Partial<Record<string, string>>; // slot → itemId
+  clearedStages?: string[]; // stage IDs the player has cleared at least once
 }
 
 export interface InventoryItem {

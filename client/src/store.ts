@@ -25,6 +25,7 @@ interface GameState {
   missionProgress: MissionProgressWithDef[];
   currentSeason: SeasonDef | null;
   lastBattleResult: BattleResultData | null;
+  pendingBattleStage: { stageId: string; stageName: string } | null;
   isLoading: boolean;
 
   setScreen: (s: Screen) => void;
@@ -37,6 +38,7 @@ interface GameState {
   setMissionProgress: (m: MissionProgressWithDef[]) => void;
   setCurrentSeason: (s: SeasonDef) => void;
   setLastBattleResult: (r: BattleResultData | null) => void;
+  setPendingBattleStage: (s: { stageId: string; stageName: string } | null) => void;
   setLoading: (v: boolean) => void;
 }
 
@@ -63,6 +65,7 @@ export const useGameStore = create<GameState>((set) => ({
   missionProgress: [],
   currentSeason: null,
   lastBattleResult: null,
+  pendingBattleStage: null,
   isLoading: true,
 
   setScreen: (screen) => set({ screen }),
@@ -75,5 +78,6 @@ export const useGameStore = create<GameState>((set) => ({
   setMissionProgress: (missionProgress) => set({ missionProgress }),
   setCurrentSeason: (currentSeason) => set({ currentSeason }),
   setLastBattleResult: (lastBattleResult) => set({ lastBattleResult }),
+  setPendingBattleStage: (pendingBattleStage) => set({ pendingBattleStage }),
   setLoading: (isLoading) => set({ isLoading }),
 }));
