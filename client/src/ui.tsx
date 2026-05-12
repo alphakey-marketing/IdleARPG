@@ -231,6 +231,8 @@ export function TileSprite({ src, size = 16, scale = 1, alt = '', style }: TileS
   if (errored) {
     return (
       <div
+        role="img"
+        aria-label={alt || undefined}
         style={{
           width: px,
           height: px,
@@ -239,7 +241,6 @@ export function TileSprite({ src, size = 16, scale = 1, alt = '', style }: TileS
           borderRadius: 2,
           ...style,
         }}
-        aria-hidden="true"
       />
     );
   }
@@ -278,6 +279,8 @@ export function ItemIcon({ itemDefId, size = 32 }: ItemIconProps) {
   if (errored || !src) {
     return (
       <div
+        role="img"
+        aria-label={itemDef?.name ?? itemDefId}
         style={{
           width: px,
           height: px,
@@ -286,7 +289,6 @@ export function ItemIcon({ itemDefId, size = 32 }: ItemIconProps) {
           borderRadius: 3,
           flexShrink: 0,
         }}
-        aria-hidden="true"
       />
     );
   }
@@ -324,6 +326,8 @@ export function SkillIcon({ skillId, cooldownPct = 0, size = 32 }: SkillIconProp
   if (errored || !src) {
     return (
       <div
+        role="img"
+        aria-label={skillId}
         style={{
           width: size,
           height: size,
@@ -331,7 +335,6 @@ export function SkillIcon({ skillId, cooldownPct = 0, size = 32 }: SkillIconProp
           borderRadius: 6,
           flexShrink: 0,
         }}
-        aria-hidden="true"
       />
     );
   }

@@ -123,7 +123,7 @@ export default function InventoryScreen() {
                       border: `1px dashed ${COLOURS.border}`,
                       borderRadius: 3,
                       flexShrink: 0,
-                      backgroundImage: `url(${SLOT_SPRITES[slot] ?? ''})`,
+                      backgroundImage: SLOT_SPRITES[slot] ? `url(${SLOT_SPRITES[slot]})` : 'none',
                       backgroundSize: '80%',
                       backgroundRepeat: 'no-repeat',
                       backgroundPosition: 'center',

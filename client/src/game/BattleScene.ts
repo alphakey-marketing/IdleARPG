@@ -51,6 +51,8 @@ const PURPLE = 0xc060ff;
 const WHITE  = 0xe0e0e0;
 const ORANGE = 0xff8c00;
 const EXECUTE_HP_THRESHOLD = 0.3;
+/** Phaser built-in blank texture key used as a non-visible placeholder sprite */
+const FALLBACK_TEXTURE_KEY = '__DEFAULT';
 
 export class BattleScene extends Phaser.Scene {
   private config!: BattleConfig;
@@ -151,7 +153,7 @@ export class BattleScene extends Phaser.Scene {
       const g = this.add.graphics();
       g.fillStyle(0x2a2a4a);
       g.fillRect(width * 0.15 - 20, groundY - 48, 40, 48);
-      this.playerSprite = this.add.image(width * 0.15, groundY, '__DEFAULT').setVisible(false);
+      this.playerSprite = this.add.image(width * 0.15, groundY, FALLBACK_TEXTURE_KEY).setVisible(false);
     }
 
     this.add.text(width * 0.15, groundY + 4, 'Warrior', {
@@ -287,7 +289,7 @@ export class BattleScene extends Phaser.Scene {
         g.fillStyle(0x2a2a3a);
         g.fillRect(x - bw / 2, groundY - bh, bw, bh);
         // Cast graphics as Image to satisfy type; we use Image[] for sprites array
-        sprite = this.add.image(x, groundY, '__DEFAULT').setVisible(false);
+        sprite = this.add.image(x, groundY, FALLBACK_TEXTURE_KEY).setVisible(false);
       }
       this.enemySprites.push(sprite);
 

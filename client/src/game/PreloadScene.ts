@@ -6,6 +6,7 @@ import {
   AUDIO_PATHS,
   PHASER_KEYS,
 } from '../assetMap';
+import type { BattleConfig } from './BattleScene';
 
 /**
  * PreloadScene runs before BattleScene to load all required assets into the
@@ -38,8 +39,7 @@ export class PreloadScene extends Phaser.Scene {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  create(data: any) {
+  create(data: BattleConfig) {
     // Pass battle config through to BattleScene
     this.scene.start('BattleScene', data);
   }
