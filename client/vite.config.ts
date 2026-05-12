@@ -4,6 +4,7 @@ import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
+  publicDir: 'client/public',
   resolve: {
     alias: {
       '@idle-arpg/shared': path.resolve(__dirname, '../shared'),

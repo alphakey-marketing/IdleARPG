@@ -4,10 +4,84 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Seasonal Idle ARPG</title>
+
+    <!-- Kenney Pixel fonts via @font-face -->
     <style>
-      * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { background: #0a0a0f; color: #e0e0e0; font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; height: 100vh; }
+      @font-face {
+        font-family: 'KenneyPixel';
+        src: url('/assets/kenney_kenney-fonts/Fonts/Kenney Pixel.ttf') format('truetype');
+        font-weight: normal;
+        font-style: normal;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'KenneyFuture';
+        src: url('/assets/kenney_kenney-fonts/Fonts/Kenney Future.ttf') format('truetype');
+        font-weight: normal;
+        font-style: normal;
+        font-display: swap;
+      }
+    </style>
+
+    <!-- Satoshi + Cormorant from Fontshare -->
+    <link
+      href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&f[]=cormorant@400,600,700&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      /* ── Reset ─────────────────────────────────────────────────── */
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      /* ── Base ──────────────────────────────────────────────────── */
+      html, body {
+        height: 100%;
+        overflow: hidden;
+        background: #0a0a0f;
+        color: #e0e0e0;
+        font-family: 'Satoshi', 'Segoe UI', Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
       #root { width: 100vw; height: 100vh; }
+
+      /* ── Pixel-art image rendering ─────────────────────────────── */
+      img[data-pixel], .pixel-art {
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+      }
+
+      /* ── Scrollbar styling ─────────────────────────────────────── */
+      ::-webkit-scrollbar { width: 4px; }
+      ::-webkit-scrollbar-track { background: #0a0a0f; }
+      ::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 2px; }
+
+      /* ── Rarity colour classes ─────────────────────────────────── */
+      .rarity-common   { color: #aaaaaa; }
+      .rarity-magic    { color: #4a90d9; }
+      .rarity-rare     { color: #ffd700; }
+      .rarity-epic     { color: #c060ff; }
+      .rarity-legendary{ color: #ff8c00; }
+      .rarity-seasonal { color: #00e5ff; }
+
+      /* Glow shadows for rarity borders */
+      .glow-common    { box-shadow: 0 0 6px rgba(170,170,170,0.35); }
+      .glow-magic     { box-shadow: 0 0 6px rgba(74,144,217,0.45); }
+      .glow-rare      { box-shadow: 0 0 8px rgba(255,215,0,0.5); }
+      .glow-epic      { box-shadow: 0 0 10px rgba(192,96,255,0.55); }
+      .glow-legendary { box-shadow: 0 0 14px rgba(255,140,0,0.6); }
+      .glow-seasonal  { box-shadow: 0 0 14px rgba(0,229,255,0.6); }
+
+      /* ── Skill point float-up animation ───────────────────────── */
+      @keyframes floatUp {
+        0%   { opacity: 1; transform: translateY(0); }
+        80%  { opacity: 1; }
+        100% { opacity: 0; transform: translateY(-24px); }
+      }
+      .float-up { animation: floatUp 0.9s ease forwards; }
+
+      /* ── Interactive transitions ───────────────────────────────── */
+      button { transition: color 180ms ease, background 180ms ease, border-color 180ms ease, transform 180ms ease, box-shadow 180ms ease; }
+      button:active { transform: scale(0.97); }
     </style>
   </head>
   <body>

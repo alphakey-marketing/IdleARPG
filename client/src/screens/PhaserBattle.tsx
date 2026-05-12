@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import Phaser from 'phaser';
 import { BattleScene } from '../game/BattleScene';
+import { PreloadScene } from '../game/PreloadScene';
 import type { BattleResult } from '@idle-arpg/shared/src/types';
 
 interface CombatPlayer {
@@ -40,6 +41,7 @@ export default function PhaserBattle({ stageId, stageName, playerStats, skillOrd
       height: window.innerHeight,
       backgroundColor: '#0a0a0f',
       parent: containerRef.current,
+      audio: { disableWebAudio: false },
       // Do NOT include `scene` here — Phaser would auto-boot it without config data,
       // causing BattleScene.create() to crash (this.config undefined → black screen).
     };
@@ -47,10 +49,11 @@ export default function PhaserBattle({ stageId, stageName, playerStats, skillOrd
     const game = new Phaser.Game(config);
     gameRef.current = game;
 
-    // Add and start the scene only after the game engine is ready, passing battleConfig
-    // as the `data` argument so BattleScene.init() receives it correctly.
+    // Add and start PreloadScene first (which will hand off to BattleScene once loaded).
     game.events.once('ready', () => {
-      game.scene.add('BattleScene', BattleScene, true, battleConfigRef.current);
+      game.scene.add('PreloadScene', PreloadScene, false);
+      game.scene.add('BattleScene', BattleScene, false);
+      game.scene.start('PreloadScene', battleConfigRef.current);
     });
 
     return () => {

@@ -1,20 +1,12 @@
 import React from 'react';
 import { useGameStore } from '../store';
 import { ITEMS } from '@idle-arpg/shared/src/gameData';
-import { COLORS, styles, NavBar } from '../ui';
+import { COLOURS, styles, NavBar, ItemIcon } from '../ui';
+import { SLOT_SPRITES } from '../assetMap';
 import { api } from '../api';
 import type { InventoryItem, CharacterState, ItemDef } from '@idle-arpg/shared/src/types';
 
 const SLOT_ORDER = ['weapon', 'helmet', 'armor', 'gloves', 'legs', 'ring', 'necklace'] as const;
-const SLOT_ICONS: Record<string, string> = {
-  weapon: '⚔️',
-  helmet: '🪖',
-  armor: '🛡️',
-  gloves: '🧤',
-  legs: '👖',
-  ring: '💍',
-  necklace: '📿',
-};
 
 function StatDiff({ newDef, currentDef }: { newDef: ItemDef; currentDef: ItemDef | null }) {
   const stats: Array<keyof ItemDef['stats']> = ['attack', 'defense', 'hp', 'crit'];
@@ -36,7 +28,7 @@ function StatDiff({ newDef, currentDef }: { newDef: ItemDef; currentDef: ItemDef
       {diffs.map((d, i) => d && (
         <span key={i} style={{
           fontSize: 10,
-          color: d.positive ? COLORS.success : COLORS.danger,
+          color: d.positive ? COLOURS.success : COLOURS.danger,
           fontWeight: 'bold',
         }}>
           {d.label}
@@ -55,7 +47,6 @@ export default function InventoryScreen() {
       const def = ITEMS[item.itemDefId];
       if (!def || !character) return;
       const newEquipped = { ...character.equippedItems };
-      // Unequip existing in slot
       Object.keys(newEquipped).forEach(slot => {
         if (slot === def.slot) delete newEquipped[slot];
       });
@@ -92,7 +83,6 @@ export default function InventoryScreen() {
     return ITEMS[invItem.itemDefId] ?? null;
   }
 
-  // Group by slot
   const equipped = SLOT_ORDER.map(slot => {
     const itemId = character?.equippedItems[slot];
     const item = itemId ? inventory.find(i => i.id === itemId) : undefined;
@@ -103,44 +93,65 @@ export default function InventoryScreen() {
 
   return (
     <div style={styles.screen}>
-      <NavBar title="🎒 Inventory" onBack={() => setScreen('hub')} />
+      <NavBar title="Inventory" onBack={() => setScreen('hub')} />
       <div style={styles.content}>
-        {/* Equipped slots */}
+        {/* Equipment slots */}
         <div style={styles.panel}>
-          <div style={{ fontWeight: 'bold', color: COLORS.gold, marginBottom: 12 }}>Equipped</div>
+          <div style={{ fontWeight: 'bold', color: COLOURS.gold, marginBottom: 12, fontFamily: "'Cormorant', serif", fontSize: 16 }}>
+            Equipped
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             {equipped.map(({ slot, item }) => {
               const def = item ? ITEMS[item.itemDefId] : undefined;
               return (
                 <div key={slot} style={{
-                  background: COLORS.panelAlt,
-                  border: `1px solid ${item ? COLORS.gold : COLORS.border}`,
+                  background: COLOURS.panelAlt,
+                  border: `1px solid ${item ? COLOURS.gold : COLOURS.border}`,
                   borderRadius: 6,
                   padding: '8px 10px',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'space-between',
+                  gap: 8,
                 }}>
-                  <div>
-                    <div style={{ color: COLORS.textMuted, fontSize: 11 }}>{SLOT_ICONS[slot]} {slot}</div>
+                  {item ? (
+                    <ItemIcon itemDefId={item.itemDefId} size={32} />
+                  ) : (
+                    <div style={{
+                      width: 32,
+                      height: 32,
+                      background: COLOURS.panel,
+                      border: `1px dashed ${COLOURS.border}`,
+                      borderRadius: 3,
+                      flexShrink: 0,
+                      backgroundImage: `url(${SLOT_SPRITES[slot] ?? ''})`,
+                      backgroundSize: '80%',
+                      backgroundRepeat: 'no-repeat',
+                      backgroundPosition: 'center',
+                      imageRendering: 'pixelated',
+                      opacity: 0.3,
+                    }} aria-hidden="true" />
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ color: COLOURS.textMuted, fontSize: 10, textTransform: 'uppercase' }}>{slot}</div>
                     {item && def ? (
                       <>
-                        <div style={{ fontSize: 12, fontWeight: 'bold', color: COLORS[item.rarity as keyof typeof COLORS] ?? COLORS.text }}>
+                        <div style={{
+                          fontSize: 11,
+                          fontWeight: 'bold',
+                          color: COLOURS[item.rarity as keyof typeof COLOURS] ?? COLOURS.text,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}>
                           {def.name}
-                        </div>
-                        <div style={{ fontSize: 10, color: COLORS.textMuted }}>
-                          {Object.entries(def.stats)
-                            .filter(([, v]) => v)
-                            .map(([k, v]) => `${k}: +${typeof v === 'number' && v < 1 ? (v * 100).toFixed(0) + '%' : v}`)
-                            .join(', ')}
                         </div>
                       </>
                     ) : (
-                      <div style={{ fontSize: 12, color: COLORS.textMuted }}>— empty —</div>
+                      <div style={{ fontSize: 11, color: COLOURS.textFaint }}>empty</div>
                     )}
                   </div>
                   {item && (
-                    <button style={{ ...styles.btnDanger, padding: '3px 8px', fontSize: 11 }} onClick={() => unequip(item)}>
+                    <button style={{ ...styles.btnDanger, padding: '2px 7px', fontSize: 10 }} onClick={() => unequip(item)}>
                       Remove
                     </button>
                   )}
@@ -152,11 +163,11 @@ export default function InventoryScreen() {
 
         {/* Bag items */}
         <div style={styles.panel}>
-          <div style={{ fontWeight: 'bold', color: COLORS.gold, marginBottom: 12 }}>
+          <div style={{ fontWeight: 'bold', color: COLOURS.gold, marginBottom: 12, fontFamily: "'Cormorant', serif", fontSize: 16 }}>
             Bag ({unequippedItems.length} items)
           </div>
           {unequippedItems.length === 0 && (
-            <div style={{ color: COLORS.textMuted, fontSize: 13 }}>No items in bag. Go fight some monsters!</div>
+            <div style={{ color: COLOURS.textMuted, fontSize: 13 }}>No items in bag. Go fight some monsters!</div>
           )}
           {unequippedItems.map((item) => {
             const def = ITEMS[item.itemDefId];
@@ -165,13 +176,20 @@ export default function InventoryScreen() {
               <div key={item.id} style={{
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
+                gap: 10,
                 padding: '8px 0',
-                borderBottom: `1px solid ${COLORS.border}`,
+                borderBottom: `1px solid ${COLOURS.border}`,
               }}>
+                <ItemIcon itemDefId={item.itemDefId} size={32} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 'bold', fontSize: 14 }}>{def?.name ?? item.itemDefId}</div>
-                  <div style={{ fontSize: 11, color: COLORS.textMuted }}>
+                  <div style={{
+                    fontWeight: 'bold',
+                    fontSize: 13,
+                    color: COLOURS[item.rarity as keyof typeof COLOURS] ?? COLOURS.text,
+                  }}>
+                    {def?.name ?? item.itemDefId}
+                  </div>
+                  <div style={{ fontSize: 10, color: COLOURS.textMuted }}>
                     {def?.slot} ·{' '}
                     {def && Object.entries(def.stats)
                       .filter(([, v]) => v)
@@ -180,7 +198,7 @@ export default function InventoryScreen() {
                   </div>
                   {def && <StatDiff newDef={def} currentDef={currentDef} />}
                 </div>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginLeft: 8 }}>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                   <span style={styles.tag(item.rarity)}>{item.rarity}</span>
                   <button style={{ ...styles.btn, padding: '4px 10px', fontSize: 11 }} onClick={() => equip(item)}>
                     Equip

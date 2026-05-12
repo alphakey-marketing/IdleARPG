@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { ENEMIES, MAPS, ITEMS, SKILLS, COMMON_ITEM_IDS, BOSS_ITEM_IDS, CAVES_COMMON_ITEM_IDS, CAVES_BOSS_ITEM_IDS } from '@idle-arpg/shared/src/gameData';
 import type { EnemyDef, StageDef, InventoryItem, BattleResult } from '@idle-arpg/shared/src/types';
 import { v4 as uuidv4 } from 'uuid';
+import { PHASER_KEYS, AUDIO_KEYS } from '../assetMap';
 
 interface CombatEnemy {
   def: EnemyDef;
@@ -42,14 +43,14 @@ interface LogEntry {
   color: number;
 }
 
-const GOLD = 0xd4a017;
-const RED = 0xe05c5c;
-const GREEN = 0x5ce07a;
-const BLUE = 0x4a90d9;
+const GOLD   = 0xd4a017;
+const RED    = 0xe05c5c;
+const GREEN  = 0x5ce07a;
+const BLUE   = 0x4a90d9;
 const PURPLE = 0xc060ff;
-const WHITE = 0xe0e0e0;
+const WHITE  = 0xe0e0e0;
 const ORANGE = 0xff8c00;
-const EXECUTE_HP_THRESHOLD = 0.3; // Execute deals 2× damage below this HP fraction
+const EXECUTE_HP_THRESHOLD = 0.3;
 
 export class BattleScene extends Phaser.Scene {
   private config!: BattleConfig;
@@ -70,11 +71,12 @@ export class BattleScene extends Phaser.Scene {
   private logEntries: LogEntry[] = [];
 
   // UI objects
+  private playerSprite!: Phaser.GameObjects.Image;
   private playerHpBar!: Phaser.GameObjects.Graphics;
   private playerHpText!: Phaser.GameObjects.Text;
   private playerResourceBar!: Phaser.GameObjects.Graphics;
   private playerResourceText!: Phaser.GameObjects.Text;
-  private enemyGraphics: Phaser.GameObjects.Graphics[] = [];
+  private enemySprites: Phaser.GameObjects.Image[] = [];
   private enemyHpBars: Phaser.GameObjects.Graphics[] = [];
   private enemyLabels: Phaser.GameObjects.Text[] = [];
   private logText!: Phaser.GameObjects.Text;
@@ -84,9 +86,10 @@ export class BattleScene extends Phaser.Scene {
   private skillButtonZones: Phaser.GameObjects.Zone[] = [];
   private tickTimer!: Phaser.Time.TimerEvent;
   private stageLabel!: Phaser.GameObjects.Text;
-  private playerLabel!: Phaser.GameObjects.Text;
   private buffLabel!: Phaser.GameObjects.Text;
   private bossPhaseLabel!: Phaser.GameObjects.Text;
+  private bossHpBar!: Phaser.GameObjects.Graphics;
+  private bossHpText!: Phaser.GameObjects.Text;
 
   constructor() {
     super({ key: 'BattleScene' });
@@ -98,67 +101,118 @@ export class BattleScene extends Phaser.Scene {
 
   create() {
     const { width, height } = this.scale;
+    const groundY = height * 0.62;
 
-    // Background
-    this.add.rectangle(0, 0, width, height, 0x0a0a0f).setOrigin(0, 0);
-    // Ground line
-    this.add.rectangle(0, height * 0.6, width, 2, 0x2a2a4a).setOrigin(0, 0);
+    // ── Background: tiled stone floor (bottom 60%) ─────────────────────────
+    const floorKey = PHASER_KEYS.floor;
+    if (this.textures.exists(floorKey)) {
+      const tileSize = 16 * 3; // 48px display
+      const cols = Math.ceil(width  / tileSize) + 1;
+      const rows = Math.ceil(height * 0.4 / tileSize) + 1;
+      const startY = height * 0.6;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          this.add.image(c * tileSize, startY + r * tileSize, floorKey)
+            .setOrigin(0, 0)
+            .setScale(3)
+            .setAlpha(0.6);
+        }
+      }
+    } else {
+      // Fallback solid colour
+      this.add.rectangle(0, height * 0.6, width, height * 0.4, 0x0d0d1a).setOrigin(0, 0);
+    }
 
-    // Stage title
-    this.stageLabel = this.add.text(width / 2, 16, this.config.stageName, {
-      fontSize: '16px',
+    // Dark gradient overlay on top of floor area for readability
+    const grad = this.add.graphics();
+    grad.fillGradientStyle(0x0a0a0f, 0x0a0a0f, 0x0a0a0f, 0x0a0a0f, 1, 1, 0, 0);
+    grad.fillRect(0, 0, width, height * 0.6);
+
+    // ── Stage title ────────────────────────────────────────────────────────
+    this.stageLabel = this.add.text(width / 2, 14, this.config.stageName, {
+      fontSize: '15px',
       color: '#d4a017',
       fontStyle: 'bold',
     }).setOrigin(0.5, 0);
 
-    // Set up player
+    // ── Player setup ───────────────────────────────────────────────────────
     this.player = { ...this.config.playerStats };
     this.player.ticksUntilAttack = this.player.attackSpeed;
 
-    // Set up enemies from stage def
-    this.setupEnemies();
+    // Player sprite (warrior tile, scale 6 → 96px)
+    const charKey = PHASER_KEYS.char('warrior');
+    if (this.textures.exists(charKey)) {
+      this.playerSprite = this.add.image(width * 0.15, groundY, charKey)
+        .setOrigin(0.5, 1)
+        .setScale(6)
+        .setFlipX(false);
+    } else {
+      // Fallback neutral box
+      const g = this.add.graphics();
+      g.fillStyle(0x2a2a4a);
+      g.fillRect(width * 0.15 - 20, groundY - 48, 40, 48);
+      this.playerSprite = this.add.image(width * 0.15, groundY, '__DEFAULT').setVisible(false);
+    }
 
-    // Player visual
-    this.playerLabel = this.add.text(width * 0.15, height * 0.6 - 10, '🛡️', { fontSize: '48px' }).setOrigin(0.5, 1);
-    this.add.text(width * 0.15, height * 0.6 + 8, 'Warrior', { fontSize: '11px', color: '#d4a017' }).setOrigin(0.5, 0);
+    this.add.text(width * 0.15, groundY + 4, 'Warrior', {
+      fontSize: '10px',
+      color: '#d4a017',
+    }).setOrigin(0.5, 0);
 
     // Player HP bar
-    this.playerHpBar = this.add.graphics();
-    this.playerHpText = this.add.text(width * 0.15, height * 0.6 + 28, '', { fontSize: '11px', color: '#e0e0e0' }).setOrigin(0.5, 0);
+    this.playerHpBar  = this.add.graphics();
+    this.playerHpText = this.add.text(
+      width * 0.15, groundY + 28, '',
+      { fontSize: '10px', color: '#e0e0e0' },
+    ).setOrigin(0.5, 0);
     this.drawPlayerHp();
 
-    // Player Resource bar
-    this.playerResourceBar = this.add.graphics();
-    this.playerResourceText = this.add.text(width * 0.15, height * 0.6 + 50, '', { fontSize: '10px', color: '#4a90d9' }).setOrigin(0.5, 0);
+    // Player resource (mana) bar
+    this.playerResourceBar  = this.add.graphics();
+    this.playerResourceText = this.add.text(
+      width * 0.15, groundY + 48, '',
+      { fontSize: '9px', color: '#4a90d9' },
+    ).setOrigin(0.5, 0);
     this.drawPlayerResource();
 
     // Buff label
-    this.buffLabel = this.add.text(width * 0.15, height * 0.6 + 64, '', { fontSize: '10px', color: '#ffd700' }).setOrigin(0.5, 0);
+    this.buffLabel = this.add.text(
+      width * 0.15, groundY + 62, '',
+      { fontSize: '9px', color: '#ffd700' },
+    ).setOrigin(0.5, 0);
 
-    // Boss phase label (hidden until needed)
-    this.bossPhaseLabel = this.add.text(width / 2, 40, '', {
-      fontSize: '14px',
+    // Boss phase label
+    this.bossPhaseLabel = this.add.text(width / 2, 38, '', {
+      fontSize: '13px',
       color: '#ff8c00',
       fontStyle: 'bold',
     }).setOrigin(0.5, 0);
 
-    // Draw enemies
+    // Boss HP bar (full-width, top of canvas; hidden until a boss is present)
+    this.bossHpBar  = this.add.graphics();
+    this.bossHpText = this.add.text(width / 2, 56, '', {
+      fontSize: '10px',
+      color: '#e0e0e0',
+    }).setOrigin(0.5, 0);
+
+    // ── Enemies ────────────────────────────────────────────────────────────
+    this.setupEnemies();
     this.drawEnemies();
 
-    // Skill UI
+    // ── Skill UI ───────────────────────────────────────────────────────────
     this.drawSkillUI();
 
-    // Combat log
-    this.logText = this.add.text(12, height * 0.62 + 10, '', {
-      fontSize: '10px',
-      color: '#cccccc',
+    // ── Combat log ─────────────────────────────────────────────────────────
+    this.logText = this.add.text(12, groundY + 80, '', {
+      fontSize: '9px',
+      color: '#bbbbbb',
       wordWrap: { width: width - 24 },
     });
 
-    // Skill cooldowns
+    // ── Init cooldowns ─────────────────────────────────────────────────────
     this.config.skillOrder.forEach(id => { this.skillCooldowns[id] = 0; });
 
-    // Start combat loop
+    // ── Start combat loop ──────────────────────────────────────────────────
     this.tickTimer = this.time.addEvent({
       delay: 500,
       loop: true,
@@ -166,6 +220,7 @@ export class BattleScene extends Phaser.Scene {
       callbackScope: this,
     });
   }
+
 
   private setupEnemies() {
     const stage = this.findStage(this.config.stageId);
@@ -198,95 +253,141 @@ export class BattleScene extends Phaser.Scene {
 
   private drawEnemies() {
     const { width, height } = this.scale;
+    const groundY = height * 0.62;
+
     // Clear old
-    this.enemyGraphics.forEach(g => g.destroy());
+    this.enemySprites.forEach(s => s.destroy());
     this.enemyHpBars.forEach(g => g.destroy());
     this.enemyLabels.forEach(t => t.destroy());
-    this.enemyGraphics = [];
+    this.enemySprites = [];
     this.enemyHpBars = [];
     this.enemyLabels = [];
 
     const alive = this.enemies.filter(e => e.alive);
-    const spacing = Math.min(120, (width * 0.7) / Math.max(alive.length, 1));
+    const spacing = Math.min(120, (width * 0.65) / Math.max(alive.length, 1));
     const startX = width * 0.35;
 
     alive.forEach((enemy, i) => {
       const x = startX + i * spacing;
-      const y = height * 0.6 - 10;
+      const scale = enemy.def.isBoss ? 8 : 4;
 
-      const emoji = enemy.def.isBoss ? '👹' : this.getEnemyEmoji(enemy.def.id);
-      const label = this.add.text(x, y, emoji, { fontSize: enemy.def.isBoss ? '52px' : '36px' }).setOrigin(0.5, 1);
-      this.enemyLabels.push(label);
+      // Enemy sprite
+      const key = PHASER_KEYS.enemy(enemy.def.id);
+      let sprite: Phaser.GameObjects.Image;
+      if (this.textures.exists(key)) {
+        sprite = this.add.image(x, groundY, key)
+          .setOrigin(0.5, 1)
+          .setScale(scale)
+          .setFlipX(true);
+      } else {
+        // Fallback neutral box drawn via graphics
+        const g = this.add.graphics();
+        const bw = 16 * scale;
+        const bh = 16 * scale;
+        g.fillStyle(0x2a2a3a);
+        g.fillRect(x - bw / 2, groundY - bh, bw, bh);
+        // Cast graphics as Image to satisfy type; we use Image[] for sprites array
+        sprite = this.add.image(x, groundY, '__DEFAULT').setVisible(false);
+      }
+      this.enemySprites.push(sprite);
 
-      const nameLabel = this.add.text(x, y + 4, enemy.def.name, { fontSize: '10px', color: '#e0e0e0' }).setOrigin(0.5, 0);
+      // Boss: add pulsing tint anim
+      if (enemy.def.isBoss) {
+        this.tweens.add({
+          targets: sprite,
+          tint: { from: 0xffffff, to: 0xffddaa },
+          duration: 800,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+      }
+
+      // Enemy name label
+      const nameLabel = this.add.text(x, groundY + 3, enemy.def.name, {
+        fontSize: '9px',
+        color: '#e0e0e0',
+      }).setOrigin(0.5, 0);
       this.enemyLabels.push(nameLabel);
 
+      // Enemy HP bar
       const hpBar = this.add.graphics();
       this.enemyHpBars.push(hpBar);
-      this.drawEnemyHp(hpBar, enemy, x, y + 18);
-
-      const g = this.add.graphics();
-      this.enemyGraphics.push(g);
+      this.drawEnemyHp(hpBar, enemy, x, groundY + 14);
     });
-  }
 
-  private getEnemyEmoji(id: string): string {
-    const map: Record<string, string> = {
-      forest_slime: '🟢',
-      wolf: '🐺',
-      goblin: '👺',
-      forest_troll: '👹',
-      skeleton: '💀',
-      cave_bat: '🦇',
-      dark_knight: '🖤',
-      stone_golem: '🗿',
-      forest_spider: '🕷️',
-      forest_shaman: '🧙',
-      cave_troll: '👿',
-      dark_mage: '🧙‍♂️',
-    };
-    return map[id] ?? '👾';
+    // Boss HP bar at top of canvas
+    this.drawBossHpBar();
   }
 
   private drawEnemyHp(g: Phaser.GameObjects.Graphics, enemy: CombatEnemy, x: number, y: number) {
-    const w = 70;
+    const w = enemy.def.isBoss ? 80 : 60;
     const h = 7;
     const pct = enemy.currentHp / enemy.maxHp;
     g.clear();
-    g.fillStyle(0x333333);
+    g.fillStyle(0x2a2a2a);
     g.fillRect(x - w / 2, y, w, h);
-    g.fillStyle(enemy.def.isBoss ? 0xe05c5c : 0x5ce07a);
+    g.fillStyle(0xe05c5c);
     g.fillRect(x - w / 2, y, Math.max(0, w * pct), h);
+    // Frame overlay
+    g.lineStyle(1, 0x555555);
+    g.strokeRect(x - w / 2, y, w, h);
+  }
+
+  private drawBossHpBar() {
+    const { width } = this.scale;
+    const boss = this.enemies.find(e => e.def.isBoss && e.alive);
+    this.bossHpBar.clear();
+    if (!boss) {
+      this.bossHpText.setText('');
+      return;
+    }
+    const pct = boss.currentHp / boss.maxHp;
+    const w = width - 24;
+    const h = 10;
+    const x = 12;
+    const y = 68;
+    this.bossHpBar.fillStyle(0x2a2a2a);
+    this.bossHpBar.fillRect(x, y, w, h);
+    this.bossHpBar.fillStyle(0xe05c5c);
+    this.bossHpBar.fillRect(x, y, Math.max(0, w * pct), h);
+    this.bossHpBar.lineStyle(1, 0x555555);
+    this.bossHpBar.strokeRect(x, y, w, h);
+    this.bossHpText.setText(
+      `${boss.def.name}  ${boss.currentHp}/${boss.maxHp}`,
+    );
   }
 
   private drawPlayerHp() {
     const { width, height } = this.scale;
     const x = width * 0.15;
-    const y = height * 0.6 + 16;
-    const w = 90;
+    const y = height * 0.62 + 16;
+    const w = 110;
     const h = 8;
     const pct = this.player.hp / this.player.maxHp;
     this.playerHpBar.clear();
-    this.playerHpBar.fillStyle(0x333333);
+    this.playerHpBar.fillStyle(0x2a2a2a);
     this.playerHpBar.fillRect(x - w / 2, y, w, h);
     this.playerHpBar.fillStyle(0xe05c5c);
     this.playerHpBar.fillRect(x - w / 2, y, Math.max(0, w * pct), h);
+    this.playerHpBar.lineStyle(1, 0x555555);
+    this.playerHpBar.strokeRect(x - w / 2, y, w, h);
     this.playerHpText.setText(`${this.player.hp}/${this.player.maxHp}`);
   }
 
   private drawPlayerResource() {
     const { width, height } = this.scale;
     const x = width * 0.15;
-    const y = height * 0.6 + 38;
-    const w = 90;
+    const y = height * 0.62 + 36;
+    const w = 110;
     const h = 6;
     const pct = this.player.resource / this.player.maxResource;
     this.playerResourceBar.clear();
-    this.playerResourceBar.fillStyle(0x222244);
+    this.playerResourceBar.fillStyle(0x1a1a44);
     this.playerResourceBar.fillRect(x - w / 2, y, w, h);
     this.playerResourceBar.fillStyle(0x4a90d9);
     this.playerResourceBar.fillRect(x - w / 2, y, Math.max(0, w * pct), h);
-    this.playerResourceText.setText(`⚡${this.player.resource}/${this.player.maxResource}`);
+    this.playerResourceText.setText(`EN ${this.player.resource}/${this.player.maxResource}`);
   }
 
   private drawSkillUI() {
@@ -320,7 +421,7 @@ export class BattleScene extends Phaser.Scene {
       const nameText = this.add.text(x + 50, y + 8, skill.name, { fontSize: '11px', color: '#d4a017', fontStyle: 'bold' }).setOrigin(0.5, 0);
       this.skillButtonTexts.push(nameText);
 
-      const cdText = this.add.text(x + 50, y + 26, `CD: ${skill.cooldown}t | ⚡${skill.resourceCost}`, { fontSize: '9px', color: '#888' }).setOrigin(0.5, 0);
+      const cdText = this.add.text(x + 50, y + 26, `CD: ${skill.cooldown}t | E:${skill.resourceCost}`, { fontSize: '9px', color: '#888' }).setOrigin(0.5, 0);
       this.skillButtonCds.push(cdText);
 
       if (isBossStage) {
@@ -379,7 +480,7 @@ export class BattleScene extends Phaser.Scene {
         bg.fillStyle(0x1a1a2e);
         bg.lineStyle(2, 0xd4a017);
         bg.fillRoundedRect(x, y, 100, 54, 6);
-        cdText.setText(`✨ Active (${activeTicks}t)`);
+        cdText.setText(`[ON] Active (${activeTicks}t)`);
         cdText.setColor('#d4a017');
       } else {
         if (isBossStage) {
@@ -390,10 +491,10 @@ export class BattleScene extends Phaser.Scene {
         }
 
         if (onCooldown) {
-          cdText.setText(`⏳${this.skillCooldowns[id]}t | ⚡${skill.resourceCost}`);
+          cdText.setText(`CD: ${this.skillCooldowns[id]}t | E:${skill.resourceCost}`);
           cdText.setColor('#666666');
         } else {
-          cdText.setText(`CD: ${skill.cooldown}t | ⚡${skill.resourceCost}`);
+          cdText.setText(`CD: ${skill.cooldown}t | E:${skill.resourceCost}`);
           cdText.setColor(noResource ? '#555577' : '#888888');
         }
       }
@@ -415,26 +516,43 @@ export class BattleScene extends Phaser.Scene {
     this.fireSkill(skillId);
   }
 
-  private addLog(text: string, color: number = WHITE) {
-    this.logEntries.push({ text, color });
+  private addLog(text: string, _color: number = WHITE) {
+    this.logEntries.push({ text, color: _color });
     if (this.logEntries.length > 8) this.logEntries.shift();
     const combined = this.logEntries.map(e => e.text).join('\n');
     this.logText.setText(combined);
   }
 
-  private spawnDamageText(x: number, y: number, text: string, color: string) {
+  private playSound(key: string, volume: number) {
+    if (this.sound && this.cache.audio.exists(key)) {
+      this.sound.play(key, { volume });
+    }
+  }
+
+  private spawnDamageText(x: number, y: number, text: string, color: string, isCrit = false) {
     const dmgText = this.add.text(x, y - 20, text, {
-      fontSize: '14px',
+      fontSize: isCrit ? '20px' : '14px',
+      fontFamily: "'KenneyPixel', monospace",
       color,
-      fontStyle: 'bold',
       stroke: '#000000',
       strokeThickness: 3,
     }).setOrigin(0.5);
+
+    if (isCrit) {
+      this.tweens.add({
+        targets: dmgText,
+        scaleX: { from: 1, to: 1.5 },
+        scaleY: { from: 1, to: 1.5 },
+        duration: 120,
+        yoyo: true,
+      });
+    }
+
     this.tweens.add({
       targets: dmgText,
-      y: y - 60,
+      y: y - 70,
       alpha: 0,
-      duration: 700,
+      duration: isCrit ? 900 : 700,
       ease: 'Power1',
       onComplete: () => dmgText.destroy(),
     });
@@ -444,9 +562,34 @@ export class BattleScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const alive = this.enemies.filter(e => e.alive);
     const idx = alive.indexOf(enemy);
-    const spacing = Math.min(120, (width * 0.7) / Math.max(alive.length, 1));
+    const spacing = Math.min(120, (width * 0.65) / Math.max(alive.length, 1));
     const startX = width * 0.35;
-    return { x: startX + idx * spacing, y: height * 0.6 - 60 };
+    return { x: startX + idx * spacing, y: height * 0.62 - 60 };
+  }
+
+  /** Flash enemy sprite red on hit */
+  private flashEnemyHit(enemy: CombatEnemy) {
+    const alive = this.enemies.filter(e => e.alive);
+    const idx = alive.indexOf(enemy);
+    const sprite = this.enemySprites[idx];
+    if (!sprite || !sprite.visible) return;
+    this.tweens.add({
+      targets: sprite,
+      tint: { from: 0xff4444, to: enemy.def.isBoss ? 0xffddaa : 0xffffff },
+      duration: 100,
+      ease: 'Linear',
+    });
+  }
+
+  /** Flash player sprite alpha on hit */
+  private flashPlayerHit() {
+    if (!this.playerSprite?.visible) return;
+    this.tweens.add({
+      targets: this.playerSprite,
+      alpha: { from: 0.4, to: 1 },
+      duration: 120,
+      ease: 'Linear',
+    });
   }
 
   private doTick() {
@@ -502,9 +645,11 @@ export class BattleScene extends Phaser.Scene {
         this.player.hp = Math.max(0, this.player.hp - dmg);
         this.addLog(`${enemy.def.name} hits for ${dmg} dmg`, RED);
         this.drawPlayerHp();
+        this.flashPlayerHit();
+        this.playSound(AUDIO_KEYS.hit, 0.35);
         // Damage text on player side
         const { width, height } = this.scale;
-        this.spawnDamageText(width * 0.15, height * 0.6 - 20, `-${dmg}`, '#e05c5c');
+        this.spawnDamageText(width * 0.15, height * 0.62 - 20, `-${dmg}`, '#e05c5c');
         // Flash red
         this.cameras.main.flash(100, 200, 0, 0, false);
       }
@@ -528,8 +673,8 @@ export class BattleScene extends Phaser.Scene {
 
   private updateBuffLabel() {
     const parts: string[] = [];
-    if (this.buffTicks > 0) parts.push(`🔥 Battle Cry (${this.buffTicks}t)`);
-    if (this.defenseBuffTicks > 0) parts.push(`🛡️ Iron Skin (${this.defenseBuffTicks}t)`);
+    if (this.buffTicks > 0) parts.push(`[ATK+] Battle Cry (${this.buffTicks}t)`);
+    if (this.defenseBuffTicks > 0) parts.push(`[DEF+] Iron Skin (${this.defenseBuffTicks}t)`);
     this.buffLabel.setText(parts.join(' | '));
   }
 
@@ -563,7 +708,7 @@ export class BattleScene extends Phaser.Scene {
       this.buffAttackBonus = bonus;
       this.buffTicks = skill.buffDuration ?? 4;
       this.updateBuffLabel();
-      this.addLog(`⚡ Battle Cry! ATK +${bonus} for ${this.buffTicks}t`, PURPLE);
+      this.addLog(`[ATK+] Battle Cry! ATK +${bonus} for ${this.buffTicks}t`, PURPLE);
       return;
     }
 
@@ -573,7 +718,7 @@ export class BattleScene extends Phaser.Scene {
       this.defenseBuffBonus = bonus;
       this.defenseBuffTicks = skill.buffDuration ?? 5;
       this.updateBuffLabel();
-      this.addLog(`🛡️ Iron Skin! DEF +${bonus} for ${this.defenseBuffTicks}t`, BLUE);
+      this.addLog(`[DEF+] Iron Skin! DEF +${bonus} for ${this.defenseBuffTicks}t`, BLUE);
       return;
     }
 
@@ -587,9 +732,11 @@ export class BattleScene extends Phaser.Scene {
           let dmg = Math.max(1, this.player.attack + skill.damage - target.def.defense);
           if (isCrit) dmg = Math.floor(dmg * 2);
           target.currentHp = Math.max(0, target.currentHp - dmg);
+          this.flashEnemyHit(target);
           const pos = this.getEnemyScreenPosition(target);
-          this.spawnDamageText(pos.x, pos.y, isCrit ? `💥${dmg}` : `${dmg}`, isCrit ? '#ffd700' : '#ff8c00');
-          this.addLog(`🌀 Whirlwind: ${dmg} on ${target.def.name}${isCrit ? ' CRIT!' : ''}`, ORANGE);
+          this.spawnDamageText(pos.x, pos.y, isCrit ? `*${dmg}` : `${dmg}`, isCrit ? '#ffd700' : '#ff8c00', isCrit);
+          this.playSound(isCrit ? AUDIO_KEYS.crit : AUDIO_KEYS.hit, isCrit ? 0.55 : 0.35);
+          this.addLog(`Whirlwind: ${dmg} on ${target.def.name}${isCrit ? ' CRIT!' : ''}`, ORANGE);
           if (target.currentHp <= 0) {
             target.alive = false;
             this.xpGained += target.def.xpReward;
@@ -615,9 +762,11 @@ export class BattleScene extends Phaser.Scene {
           let dmg = Math.max(1, this.player.attack + skill.damage - target.def.defense);
           if (isCrit) dmg = Math.floor(dmg * 2);
           target.currentHp = Math.max(0, target.currentHp - dmg);
+          this.flashEnemyHit(target);
           const pos = this.getEnemyScreenPosition(target);
-          this.spawnDamageText(pos.x, pos.y, isCrit ? `💥${dmg}` : `${dmg}`, isCrit ? '#ffd700' : '#ff8c00');
-          this.addLog(`⚔️ Cleave: ${dmg} on ${target.def.name}${isCrit ? ' CRIT!' : ''}`, ORANGE);
+          this.spawnDamageText(pos.x, pos.y, isCrit ? `*${dmg}` : `${dmg}`, isCrit ? '#ffd700' : '#ff8c00', isCrit);
+          this.playSound(isCrit ? AUDIO_KEYS.crit : AUDIO_KEYS.hit, isCrit ? 0.55 : 0.35);
+          this.addLog(`Cleave: ${dmg} on ${target.def.name}${isCrit ? ' CRIT!' : ''}`, ORANGE);
           if (target.currentHp <= 0) {
             target.alive = false;
             this.xpGained += target.def.xpReward;
@@ -644,11 +793,12 @@ export class BattleScene extends Phaser.Scene {
       }
       if (isCrit) dmg = Math.floor(dmg * 2);
       target.currentHp = Math.max(0, target.currentHp - dmg);
-      const critStr = isCrit ? ' 💥CRIT!' : '';
+      this.flashEnemyHit(target);
+      const critStr = isCrit ? ' CRIT!' : '';
       this.addLog(`${skill.name}: ${dmg} dmg on ${target.def.name}${critStr}`, isCrit ? GOLD : GREEN);
-
       const pos = this.getEnemyScreenPosition(target);
-      this.spawnDamageText(pos.x, pos.y, isCrit ? `💥${dmg}` : `${dmg}`, isCrit ? '#ffd700' : '#ff8800');
+      this.spawnDamageText(pos.x, pos.y, isCrit ? `*${dmg}` : `${dmg}`, isCrit ? '#ffd700' : '#ff8800', isCrit);
+      this.playSound(isCrit ? AUDIO_KEYS.crit : AUDIO_KEYS.hit, isCrit ? 0.55 : 0.35);
 
       if (skill.stunDuration) {
         target.stunTicks = skill.stunDuration;
@@ -682,11 +832,12 @@ export class BattleScene extends Phaser.Scene {
     let dmg = Math.max(1, this.player.attack - target.def.defense);
     if (isCrit) dmg = Math.floor(dmg * 2);
     target.currentHp = Math.max(0, target.currentHp - dmg);
-    const critStr = isCrit ? ' 💥CRIT!' : '';
+    const critStr = isCrit ? ' CRIT!' : '';
     this.addLog(`Auto-attack: ${dmg} dmg on ${target.def.name}${critStr}`, isCrit ? GOLD : WHITE);
-
+    this.flashEnemyHit(target);
     const pos = this.getEnemyScreenPosition(target);
-    this.spawnDamageText(pos.x, pos.y, isCrit ? `💥${dmg}` : `${dmg}`, isCrit ? '#ffd700' : '#e0e0e0');
+    this.spawnDamageText(pos.x, pos.y, isCrit ? `*${dmg}` : `${dmg}`, isCrit ? '#ffd700' : '#e0e0e0', isCrit);
+    this.playSound(isCrit ? AUDIO_KEYS.crit : AUDIO_KEYS.hit, isCrit ? 0.55 : 0.35);
 
     if (target.currentHp <= 0) {
       target.alive = false;
@@ -713,14 +864,14 @@ export class BattleScene extends Phaser.Scene {
     if (newPhase !== this.bossPhase) {
       this.bossPhase = newPhase;
       const phaseColors = ['', '#ffff00', '#ff8c00', '#e05c5c'];
-      this.bossPhaseLabel.setText(`⚠️ BOSS PHASE ${newPhase}!`);
+      this.bossPhaseLabel.setText(`!! BOSS PHASE ${newPhase} !!`);
       this.bossPhaseLabel.setColor(phaseColors[newPhase]);
       this.bossPhaseLabel.setAlpha(1);
-      this.addLog(`⚠️ ${boss.def.name} enters Phase ${newPhase}!`, ORANGE);
+      this.addLog(`${boss.def.name} enters Phase ${newPhase}!`, ORANGE);
       this.cameras.main.shake(300, 0.012);
       // Boost boss attack per phase transition
       boss.def.attack = Math.floor(boss.def.attack * 1.3);
-      this.addLog(`💀 ${boss.def.name} ATK increased!`, RED);
+      this.addLog(`${boss.def.name} ATK increased!`, RED);
       // Flash: red for phase 3, orange for phase 2
       if (newPhase === 3) {
         this.cameras.main.flash(300, 255, 0, 0, false);
@@ -772,7 +923,8 @@ export class BattleScene extends Phaser.Scene {
         if (itemDef) {
           const drop: InventoryItem = { id: uuidv4(), itemDefId: id, rarity: itemDef.rarity };
           this.itemsDropped.push(drop);
-          this.addLog(`✨ ${itemDef.name} dropped!`, ORANGE);
+          this.playSound(AUDIO_KEYS.loot, 0.5);
+          this.addLog(`[LOOT] ${itemDef.name} dropped!`, ORANGE);
         }
       }
     } else {
@@ -783,7 +935,8 @@ export class BattleScene extends Phaser.Scene {
         if (itemDef) {
           const drop: InventoryItem = { id: uuidv4(), itemDefId: id, rarity: itemDef.rarity };
           this.itemsDropped.push(drop);
-          this.addLog(`📦 ${itemDef.name} dropped!`, BLUE);
+          this.playSound(AUDIO_KEYS.loot, 0.5);
+          this.addLog(`[LOOT] ${itemDef.name} dropped!`, BLUE);
         }
       }
     }
@@ -792,15 +945,16 @@ export class BattleScene extends Phaser.Scene {
   private updateEnemyHpBars() {
     const alive = this.enemies.filter(e => e.alive);
     const { width, height } = this.scale;
-    const spacing = Math.min(120, (width * 0.7) / Math.max(alive.length, 1));
+    const spacing = Math.min(120, (width * 0.65) / Math.max(alive.length, 1));
     const startX = width * 0.35;
+    const groundY = height * 0.62;
 
     alive.forEach((enemy, i) => {
       const x = startX + i * spacing;
-      const y = height * 0.6 + 12;
       const bar = this.enemyHpBars[i];
-      if (bar) this.drawEnemyHp(bar, enemy, x, y);
+      if (bar) this.drawEnemyHp(bar, enemy, x, groundY + 14);
     });
+    this.drawBossHpBar();
   }
 
   private endBattle(won: boolean) {
@@ -808,14 +962,17 @@ export class BattleScene extends Phaser.Scene {
     this.battleEnded = true;
     this.tickTimer.remove(false);
 
+    this.playSound(won ? AUDIO_KEYS.victory : AUDIO_KEYS.defeat, 0.6);
+
     const { width, height } = this.scale;
     this.add.rectangle(0, 0, width, height, 0x000000, 0.7).setOrigin(0, 0);
 
-    const resultText = won ? '⚔️ VICTORY!' : '💀 DEFEATED';
+    const resultText = won ? 'VICTORY!' : 'DEFEATED';
     const resultColor = won ? '#5ce07a' : '#e05c5c';
 
     this.add.text(width / 2, height / 2 - 60, resultText, {
-      fontSize: '32px',
+      fontSize: '34px',
+      fontFamily: "'KenneyFuture', monospace",
       color: resultColor,
       fontStyle: 'bold',
     }).setOrigin(0.5, 0.5);
@@ -827,7 +984,8 @@ export class BattleScene extends Phaser.Scene {
         `${this.monstersKilled} monsters killed`,
         this.itemsDropped.length > 0 ? `${this.itemsDropped.length} item(s) dropped!` : '',
       ].filter(Boolean).join('\n'), {
-        fontSize: '16px',
+        fontSize: '15px',
+        fontFamily: "'KenneyPixel', monospace",
         color: '#d4a017',
         align: 'center',
       }).setOrigin(0.5, 0.5);
